@@ -18,10 +18,10 @@ const report: EvidenceReport = {
   session: 's',
   sheets: [
     {
-      key: 'route-app-persons--admin-light-9c41d0',
-      title: '/app/persons as admin@example.org › page (light)',
-      file: '.shots/s/report/route-app-persons--admin-light-9c41d0.png',
-      sizes: [defaultSize],
+      key: 'route-app-persons--admin-9c41d0',
+      title: '/app/persons as admin@example.org › page',
+      file: '.shots/s/report/route-app-persons--admin-9c41d0.png',
+      variants: [{ size: defaultSize, mode: 'light' }],
       rows: [
         {
           label: 'before',
@@ -142,11 +142,11 @@ describe('publishEvidenceToPr', () => {
         '--body-file',
         '.shots/s/report/pr-body.md',
         '--attach',
-        '.shots/s/report/route-app-persons--admin-light-9c41d0.png',
+        '.shots/s/report/route-app-persons--admin-9c41d0.png',
       ])
       const body = readFileSync(path.join(projectRoot, '.shots/s/report/pr-body.md'), 'utf8')
       expect(body.startsWith(`Fixes the list.\n\n${evidenceStartMarker}`)).toBe(true)
-      expect(body).toContain('](.shots/s/report/route-app-persons--admin-light-9c41d0.png)')
+      expect(body).toContain('](.shots/s/report/route-app-persons--admin-9c41d0.png)')
     }),
   )
 })

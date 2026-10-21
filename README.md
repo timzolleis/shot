@@ -22,7 +22,7 @@ warn  target   /settings as admin@example.org › Profile: touch target 67×40, 
 - **Before and after line up.** The same capture always gets the same file name, so `before/` and `after/` pair up without any setup. Shot doesn't run git. The agent stashes its change and shoots both states.
 - **Every size in one run.** `--size phone --size desktop` shoots each size. Each size uses its own section list, so a sidebar that's hidden on phones isn't shot there.
 - **Bugs you'd catch in review, caught earlier.** `--check` finds overflowing or clipped text, touch targets that are too small, missing focus rings, edges that are 1–3px out of line, and axe violations.
-- **Reviewers see what changed.** `shot publish` writes the stills, flow videos and findings into the PR description: one sheet per capture, with a row per label and a column per size.
+- **Reviewers see what changed.** `shot publish` writes the stills, flow videos and findings into the PR description: one sheet per capture, with a row per label and a column per size and mode, so before and after in light and dark is one image.
 - **Logged-in pages work.** You give it a login hook once, and it keeps a session for each user. Requests that would change data (POST/PUT/PATCH/DELETE) are blocked, so a scene can't change your dev data.
 - **It works with any framework.** It only needs a URL. Shot drives Playwright Chromium against your running dev server.
 

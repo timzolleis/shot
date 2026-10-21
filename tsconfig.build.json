@@ -1,0 +1,4 @@
+{
+  "files": [],
+  "references": [{ "path": "packages/agent-shot/tsconfig.build.json" }, { "path": "plugins/axe/tsconfig.build.json" }]
+}

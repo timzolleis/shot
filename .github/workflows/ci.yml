@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read # to check out repo (actions/checkout)
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter agent-shot exec playwright install --with-deps chromium
+
+      - run: pnpm check
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm build
+      - run: pnpm test

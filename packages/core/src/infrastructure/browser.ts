@@ -19,6 +19,7 @@ const launchChromium = Effect.promise(async () => {
     process.stderr.write('Installing Playwright Chromium (one time)…\n')
     const cli = createRequire(import.meta.url).resolve('playwright/cli')
     execFileSync(process.execPath, [cli, 'install', 'chromium'], { stdio: ['ignore', 'inherit', 'inherit'] })
+
     return chromium.launch()
   }
 })
@@ -33,16 +34,20 @@ export const PlaywrightBrowserLayer = Layer.effect(
         Effect.flatMap(Option.match({ onNone: () => Effect.void, onSome: (browser) => Effect.promise(() => browser.close()) })),
       ),
     )
+
     const browser = Semaphore.withPermit(
       launching,
       Effect.gen(function* () {
         const current = yield* Ref.get(launched)
+
         if (Option.isSome(current)) return current.value
         const started = yield* launchChromium
         yield* Ref.set(launched, Option.some(started))
+
         return started
       }),
     )
+
     return Browser.of({
       newContext: (options) =>
         Effect.acquireRelease(

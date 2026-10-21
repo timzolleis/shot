@@ -23,8 +23,11 @@ export interface GapBand {
 const layoutChildren = (element: Element): ReadonlyArray<Element> =>
   Array.from(element.children).flatMap((child) => {
     const style = getComputedStyle(child)
+
     if (style.display === 'contents') return layoutChildren(child)
+
     if (style.display === 'none' || style.position === 'absolute' || style.position === 'fixed') return []
+
     return [child]
   })
 
@@ -33,47 +36,61 @@ const declaredGap = (parent: Element, previous: Element, next: Element, axis: Ga
   const before = getComputedStyle(previous)
   const after = getComputedStyle(next)
   const layout = /flex|grid/.test(style.display)
+
   if (axis === 'vertical') {
     const margins = px(before.marginBottom) + px(after.marginTop)
+
     return layout ? px(style.rowGap) + margins : Math.max(px(before.marginBottom), px(after.marginTop))
   }
+
   return (layout ? px(style.columnGap) : 0) + px(before.marginRight) + px(after.marginLeft)
 }
 
 /** Every gap between two neighbouring siblings in `root`, in page coordinates. */
 export const measureGaps = (root: Element): ReadonlyArray<GapBand> => {
   const bands = new Map<string, GapBand>()
+
   for (const parent of [root, ...root.querySelectorAll('*')]) {
     if (parent.closest('svg') !== null || parent.closest('[data-shot-overlay]') !== null) continue
+
     const children = layoutChildren(parent).filter((child) => {
       const box = child.getBoundingClientRect()
+
       return box.width > 0 && box.height > 0
     })
+
     const boxes = children.map((child) => child.getBoundingClientRect())
+
     const add = (index: number, axis: GapBand['axis'], rect: Rect, size: number) => {
       const key = `${axis}:${rect.y}:${rect.x}:${size}`
+
       if (bands.has(key)) return
       const declared = declaredGap(parent, children[index - 1]!, children[index]!, axis)
       bands.set(key, { axis, rect, size, free: size > declared + 0.5 })
     }
+
     for (let index = 1; index < boxes.length; index++) {
       const previous = boxes[index - 1]!
       const next = boxes[index]!
       const vertical = Math.round(next.top - previous.bottom)
       const left = Math.max(previous.left, next.left)
       const right = Math.min(previous.right, next.right)
+
       if (vertical > 0 && right > left) {
         add(index, 'vertical', pageRect(new DOMRect(left, previous.bottom, right - left, vertical)), vertical)
         continue
       }
+
       const horizontal = Math.round(next.left - previous.right)
       const top = Math.max(previous.top, next.top)
       const bottom = Math.min(previous.bottom, next.bottom)
+
       if (horizontal > 0 && bottom > top) {
         add(index, 'horizontal', pageRect(new DOMRect(previous.right, top, horizontal, bottom - top)), horizontal)
       }
     }
   }
+
   return [...bands.values()].sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x)
 }
 
@@ -91,6 +108,7 @@ export const measureType = (root: Element): ReadonlyArray<TypeSample> =>
     const style = getComputedStyle(run.element)
     const size = px(style.fontSize)
     const lineHeight = style.lineHeight === 'normal' ? undefined : px(style.lineHeight)
+
     return {
       selector: selectorFromElement(run.element),
       text: (run.element.textContent ?? '').trim().slice(0, 40),
@@ -114,6 +132,7 @@ export const measureBoxes = (root: Element): ReadonlyArray<BoxSample> =>
     .slice(0, 400)
     .map((element) => {
       const style = getComputedStyle(element)
+
       return {
         selector: selectorFromElement(element),
         rect: pageRect(element.getBoundingClientRect()),
@@ -160,9 +179,11 @@ const edgeItems = (root: Element): ReadonlyArray<EdgeItem> => [
 export const measureEdges = (root: Element): { guides: ReadonlyArray<Guide>; nearMisses: ReadonlyArray<NearMiss> } => {
   const items = edgeItems(root)
   const guides: Array<Guide> = []
+
   const collect = (axis: 'x' | 'y', values: ReadonlyArray<{ at: number; from: number; to: number }>) => {
     const sorted = [...values].sort((a, b) => a.at - b.at)
     let group: Array<{ at: number; from: number; to: number }> = []
+
     const flush = () => {
       if (group.length >= 2) {
         guides.push({
@@ -173,14 +194,18 @@ export const measureEdges = (root: Element): { guides: ReadonlyArray<Guide>; nea
           count: group.length,
         })
       }
+
       group = []
     }
+
     for (const value of sorted) {
       if (group.length > 0 && Math.abs(value.at - group[0]!.at) >= 0.5) flush()
       group.push(value)
     }
+
     flush()
   }
+
   collect(
     'x',
     items.flatMap((item) => [
@@ -201,15 +226,19 @@ export const measureEdges = (root: Element): { guides: ReadonlyArray<Guide>; nea
   )
   const nearMisses: Array<NearMiss> = []
   const near = (delta: number) => delta >= 0.75 && delta <= 3.25
+
   for (let i = 0; i < items.length; i++) {
     for (let j = i + 1; j < items.length; j++) {
       const a = items[i]!
       const b = items[j]!
+
       if (related(a.element, b.element)) continue
       const verticalGap = Math.max(b.rect.y - (a.rect.y + a.rect.height), a.rect.y - (b.rect.y + b.rect.height))
       const horizontalGap = Math.max(b.rect.x - (a.rect.x + a.rect.width), a.rect.x - (b.rect.x + b.rect.width))
+
       const add = (edge: NearMiss['edge'], atA: number, atB: number) => {
         const delta = round(Math.abs(atA - atB))
+
         if (near(delta)) {
           nearMisses.push({
             edge,
@@ -221,18 +250,22 @@ export const measureEdges = (root: Element): { guides: ReadonlyArray<Guide>; nea
           })
         }
       }
+
       // Stacked neighbours: left and right edges should line up.
       if (verticalGap >= 0 && verticalGap <= 24 && horizontalGap < 0) {
         add('left', a.rect.x, b.rect.x)
         add('right', a.rect.x + a.rect.width, b.rect.x + b.rect.width)
       }
+
       // One row: baselines of text, centres of boxes.
       if (horizontalGap >= 0 && horizontalGap <= 48 && verticalGap < 0) {
         if (a.baseline !== undefined && b.baseline !== undefined) add('baseline', a.baseline, b.baseline)
+
         if (a.kind === 'box' && b.kind === 'box') add('center-y', a.rect.y + a.rect.height / 2, b.rect.y + b.rect.height / 2)
       }
     }
   }
+
   return { guides, nearMisses }
 }
 
@@ -240,6 +273,7 @@ export const measureEdges = (root: Element): { guides: ReadonlyArray<Guide>; nea
 export const measureElements = (elements: ReadonlyArray<Element>, styles: ReadonlyArray<string>) =>
   elements.map((element, index) => {
     const style = getComputedStyle(element)
+
     return {
       selector: selectorFromElement(element),
       index,

@@ -25,11 +25,13 @@ export const shotLayer = (cwd: string) => {
   const sheets = SheetsLayer.pipe(Layer.provide(browser))
   const store = FileArtifactStoreLayer.pipe(Layer.provide([sheets, platform]))
   const shotPlatform = Layer.mergeAll(platform, browser, store)
+
   const plugins = Layer.unwrap(
     Effect.map(ShotConfig, (loaded) =>
       loaded.plugins.length === 0 ? Layer.empty : Layer.mergeAll(...(loaded.plugins.map((plugin) => plugin.layer) as [Layer.Layer<any>])),
     ),
   ).pipe(Layer.provide(shotPlatform))
+
   const runtime = PageRuntimeLayer
   const hooks = AppHooksLayer.pipe(Layer.provide(config))
   const sessions = AppSessionsLayer.pipe(Layer.provide([hooks, shotPlatform]))
@@ -38,6 +40,7 @@ export const shotLayer = (cwd: string) => {
   const runner = CaptureRunnerLayer.pipe(Layer.provide([providers, runtime, checks, sheets, shotPlatform]))
   const encoder = FfmpegVideoEncoderLayer.pipe(Layer.provide(platform))
   const publishers = EvidencePublishersLayer.pipe(Layer.provide([plugins, shotPlatform]))
+
   return Layer.mergeAll(
     ShootTargetServiceLayer.pipe(Layer.provide([providers, runner, shotPlatform])),
     RecordFlowServiceLayer.pipe(Layer.provide([providers, encoder, shotPlatform])),

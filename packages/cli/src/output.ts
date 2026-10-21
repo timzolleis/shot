@@ -20,6 +20,7 @@ export const displayPath = (file: string) =>
 export const findingLine = (result: CaptureResult, finding: Finding): string => {
   const subject = Option.getOrElse(result.capture.name, () => partDescription(result.capture.part))
   const selector = finding.selector === '' ? '' : ` (${finding.selector})`
+
   return `${finding.severity === 'error' ? 'error' : 'warn '} ${finding.check.padEnd(8)} ${sourceDescription(result.capture.source)} › ${subject} (${result.capture.variant.mode}): ${finding.message}${selector}`
 }
 
@@ -31,17 +32,21 @@ export const distinctFindingLines = (results: ReadonlyArray<CaptureResult>): Rea
 export const printCaptureResults = (results: ReadonlyArray<CaptureResult>) =>
   Effect.gen(function* () {
     const store = yield* ArtifactStore
+
     for (const result of results) {
       if (result._tag !== 'CapturedResult') continue
       const shown = yield* displayPath(result.file)
+
       if (result.file.endsWith('.png')) {
         yield* printLine(shown)
         continue
       }
+
       // Measurements and the aria tree are what to read: print them after their path.
       yield* printLine(`# ${shown}`)
       yield* printLine(readFileSync(store.absolutePath(result.file), 'utf8').trimEnd())
     }
+
     for (const line of distinctFindingLines(results)) yield* printLine(line)
   })
 

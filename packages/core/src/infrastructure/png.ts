@@ -6,6 +6,7 @@ import type { Rect } from '../capture/domain/capture.ts'
 export const cropPng = ({ png, rect }: { readonly png: Uint8Array; readonly rect: Rect }): Uint8Array => {
   const image = PNG.sync.read(Buffer.from(png))
   const out = new PNG({ width: rect.width, height: rect.height })
+
   for (let y = 0; y < out.height; y++) {
     for (let x = 0; x < out.width; x++) {
       const source = ((rect.y + y) * image.width + rect.x + x) * 4
@@ -16,6 +17,7 @@ export const cropPng = ({ png, rect }: { readonly png: Uint8Array; readonly rect
       out.data[target + 3] = image.data[source + 3]!
     }
   }
+
   return new Uint8Array(PNG.sync.write(out))
 }
 
@@ -31,6 +33,7 @@ export const paddedRect = ({
 }): Rect => {
   const x = Math.max(0, Math.floor(rect.x - padding))
   const y = Math.max(0, Math.floor(rect.y - padding))
+
   return {
     x,
     y,
@@ -41,5 +44,6 @@ export const paddedRect = ({
 
 export const pngSize = (png: Uint8Array) => {
   const view = new DataView(png.buffer, png.byteOffset, png.byteLength)
+
   return { width: view.getUint32(16), height: view.getUint32(20) }
 }

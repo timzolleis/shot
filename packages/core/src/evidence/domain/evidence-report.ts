@@ -62,22 +62,28 @@ export const evidenceReportFromSession = (session: Session): EvidenceReport => {
       ),
     ),
   ]
+
   const sheets = keys.flatMap((key): ReadonlyArray<EvidenceSheet> => {
     const results = session.labels.flatMap((entry) => entry.captures.filter((result) => result.key === key))
     const capture = results[0]!.capture
+
     const columns = session.labels
       .filter((entry) => entry.captures.some((result) => result.key === key))
       .map(
         (entry): SheetColumn => {
           const result = entry.captures.find((candidate) => candidate.key === key)
+
           return {
             label: entry.label,
             still: result?._tag === 'CapturedResult' ? Option.some(result.file) : Option.none(),
           }
         },
       )
+
     const stills = columns.flatMap((column) => Option.toArray(column.still))
+
     if (stills.length === 0) return []
+
     return [
       {
         key,
@@ -87,6 +93,7 @@ export const evidenceReportFromSession = (session: Session): EvidenceReport => {
       },
     ]
   })
+
   const flows = session.labels.flatMap((entry) =>
     entry.flows.map(
       (flow): EvidenceFlow => ({
@@ -99,6 +106,7 @@ export const evidenceReportFromSession = (session: Session): EvidenceReport => {
       }),
     ),
   )
+
   const findings = session.labels
     .map(
       (entry): EvidenceFindings => ({
@@ -130,7 +138,9 @@ export const evidenceReportFromSession = (session: Session): EvidenceReport => {
       }),
     )
     .filter((group) => group.findings.length > 0)
+
   const all = findings.flatMap((group) => group.findings)
+
   return {
     session: session.name,
     sheets,
@@ -154,32 +164,42 @@ export const evidenceMarkdownFromReport = (report: EvidenceReport): string => {
     `${plural(report.summary.captures, 'capture')}, ${plural(report.flows.length, 'flow')}; ${plural(report.summary.errors, 'error')}, ${plural(report.summary.warnings, 'warning')}.`,
     '',
   )
+
   for (const sheet of report.sheets) {
     const header = sheet.columns
       .map((column) => `${labelDisplayName(column.label)}${Option.isNone(column.still) ? ' (failed)' : ''}`)
       .join(' | ')
+
     lines.push(`**${sheet.title}** · ${header}`, '', `![${sheet.key}](${sheet.file})`, '')
   }
+
   for (const flow of report.flows) {
     const outcome = Option.match(flow.stoppedAt, {
       onNone: () => `${plural(flow.stills.length, 'step')} passed`,
       onSome: ({ step, reason }) => `stopped at ${step}: ${reason}`,
     })
+
     lines.push(`**Flow ${flow.name}** (${labelDisplayName(flow.label)}) · ${outcome}`, '', flow.video, '')
+
     if (flow.stills.length > 0) {
       lines.push('<details><summary>Steps</summary>', '')
+
       for (const still of flow.stills) lines.push(`${still.step}`, '', `![${still.step}](${still.file})`, '')
       lines.push('</details>', '')
     }
   }
+
   for (const group of report.findings) {
     lines.push(`<details><summary>Findings · ${labelDisplayName(group.label)} (${group.findings.length})</summary>`, '')
+
     for (const { subject, finding } of group.findings) {
       const selector = finding.selector === '' ? '' : ` (\`${finding.selector}\`)`
       lines.push(`- ${finding.severity} ${finding.check} · ${subject}: ${finding.message}${selector}`)
     }
+
     lines.push('', '</details>', '')
   }
+
   return lines.join('\n').trimEnd()
 }
 

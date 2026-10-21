@@ -24,18 +24,26 @@ export const main = () =>
       Effect.gen(function* () {
         if (Cause.hasInterruptsOnly(cause)) {
           process.exitCode = 130
+
           return
         }
+
         const error = Cause.squash(cause)
+
         if (CliError.isCliError(error)) {
           // effect/cli already printed the usage error and the help.
           process.exitCode = 2
+
           return
         }
+
         process.exitCode = 1
+
         if (Cause.hasFails(cause) && isShotError(error)) return yield* writeError(cliMessageFromShotError(error))
+
         if (process.env['SHOT_DEBUG'] === '1') return yield* writeError(Cause.pretty(cause))
         const message = error instanceof Error ? error.message : String(error)
+
         return yield* writeError(`shot crashed: ${message.split('\n')[0]} (SHOT_DEBUG=1 shows the stack)`)
       }),
     ),

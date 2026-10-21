@@ -24,23 +24,27 @@ export const a11yCheck: CaptureCheck = {
   runCheck: ({ page: { page }, roots }) =>
     Effect.promise(async () => {
       if (!(await page.evaluate(() => 'axe' in window))) await page.addScriptTag({ content: axeSource() })
+
       const violations = (
         await Promise.all(
           roots.map((root) =>
             root.evaluate(async (element, disabled) => {
               const axe = (window as unknown as { axe: { run: (...args: ReadonlyArray<unknown>) => Promise<unknown> } }).axe
+
               const result = (await axe.run(element, {
                 resultTypes: ['violations'],
                 rules: Object.fromEntries(disabled.map((rule) => [rule, { enabled: false }])),
               })) as {
                 violations: ReadonlyArray<{ id: string; impact: string | null; help: string; nodes: ReadonlyArray<{ target: ReadonlyArray<string> }> }>
               }
+
               return result.violations.map((violation) => ({
                 id: violation.id,
                 impact: violation.impact,
                 help: violation.help,
                 nodes: violation.nodes.map((node) => {
                   const rect = document.querySelector(node.target.join(' '))?.getBoundingClientRect()
+
                   return {
                     target: node.target,
                     rect: rect === undefined ? undefined : { x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: rect.height },
@@ -51,6 +55,7 @@ export const a11yCheck: CaptureCheck = {
           ),
         )
       ).flat() as ReadonlyArray<AxeViolation>
+
       return violations.flatMap((violation) =>
         violation.nodes.map(
           (node): Finding => ({

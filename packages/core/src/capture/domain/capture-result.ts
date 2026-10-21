@@ -11,6 +11,7 @@ export const CapturedResult = Schema.TaggedStruct('CapturedResult', {
   measurements: Schema.Json,
   findings: Schema.Array(Finding),
 })
+
 export type CapturedResult = typeof CapturedResult.Type
 
 /** A capture whose source, scene or part failed: findings say why; there is no file to show (A3). */
@@ -19,7 +20,9 @@ export const FailedCaptureResult = Schema.TaggedStruct('FailedCaptureResult', {
   key: Schema.String,
   findings: Schema.Array(Finding),
 })
+
 export type FailedCaptureResult = typeof FailedCaptureResult.Type
 
 export const CaptureResult = Schema.Union([CapturedResult, FailedCaptureResult])
+
 export type CaptureResult = typeof CaptureResult.Type

@@ -31,6 +31,7 @@ const cookieOf = (request: IncomingMessage, name: string) =>
 
 const userOf = (request: IncomingMessage) => {
   const token = cookieOf(request, 'session')
+
   return token === undefined ? undefined : sessions.get(token)
 }
 
@@ -76,13 +77,18 @@ const pages: Record<string, (user: string) => string> = {
 
 const handle = async (request: IncomingMessage, response: ServerResponse) => {
   const url = new URL(request.url ?? '/', 'http://fixture')
+
   if (url.pathname === '/health') return send(response, 200, 'ok')
+
   if (url.pathname === '/__logins') return send(response, 200, String(logins))
+
   if (url.pathname === '/__expire') {
     sessions.clear()
     generation++
+
     return send(response, 200, 'expired')
   }
+
   if (url.pathname === '/login' && request.method === 'GET') {
     return send(
       response,
@@ -93,22 +99,32 @@ const handle = async (request: IncomingMessage, response: ServerResponse) => {
       ),
     )
   }
+
   if (url.pathname === '/login' && request.method === 'POST') {
     const email = new URLSearchParams(await readBody(request)).get('email') ?? ''
+
     if (!accounts.has(email)) return send(response, 303, '', { location: '/login?error=1' })
     logins++
     const token = `${generation}-${Math.random().toString(36).slice(2)}`
     sessions.set(token, email)
+
     return send(response, 303, '', { location: '/app/persons', 'set-cookie': `session=${token}; Path=/; HttpOnly` })
   }
+
   if (url.pathname === '/broken') return send(response, 500, layout('Broken', '<h1>Internal error</h1>'))
+
   if (url.pathname === '/app/missing') return send(response, 302, '', { location: '/404' })
+
   if (url.pathname === '/404') return send(response, 200, layout('Not found', '<h1>Not found</h1>'))
+
   if (url.pathname.startsWith('/api/')) return send(response, 200, '{}', { 'content-type': 'application/json' })
   const page = pages[url.pathname]
+
   if (page === undefined) return send(response, 404, layout('Not found', '<h1>Not found</h1>'))
   const user = userOf(request)
+
   if (user === undefined) return send(response, 302, '', { location: `/login?next=${encodeURIComponent(url.pathname)}` })
+
   return send(response, 200, page(user))
 }
 

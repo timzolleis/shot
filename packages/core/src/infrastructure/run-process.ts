@@ -20,11 +20,14 @@ export const runProcess = ({
   Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
     const handle = yield* spawner.spawn(ChildProcess.make(command, args, cwd === undefined ? {} : { cwd }))
+
     const [stdout, stderr] = yield* Effect.all(
       [Stream.mkString(Stream.decodeText(handle.stdout)), Stream.mkString(Stream.decodeText(handle.stderr))],
       { concurrency: 2 },
     )
+
     const exitCode = yield* handle.exitCode
+
     return { exitCode: Number(exitCode), stdout, stderr }
   }).pipe(
     Effect.scoped,

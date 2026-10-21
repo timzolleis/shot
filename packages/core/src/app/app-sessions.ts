@@ -56,6 +56,7 @@ export const AppSessionsLayer = Layer.effect(
     /** `mkdir` is atomic: whoever creates the lock directory holds it. */
     const withLock = <A, E>(key: string, file: string, body: Effect.Effect<A, E>) => {
       const lock = `${file}.lock`
+
       const acquire = Effect.tryPromise({
         try: async () => {
           await mkdir(path.dirname(lock), { recursive: true })
@@ -68,6 +69,7 @@ export const AppSessionsLayer = Layer.effect(
         Effect.orDie,
         Effect.timeoutOrElse({ duration: lockTimeout, orElse: () => new SessionLockTimeoutError({ key }) }),
       )
+
       return Effect.acquireUseRelease(
         acquire,
         () => body,
@@ -84,6 +86,7 @@ export const AppSessionsLayer = Layer.effect(
           yield* hooks.logIn({ page, url, user, params })
           yield* fs.makeDirectory(path.dirname(file), { recursive: true }).pipe(Effect.orDie)
           yield* Effect.promise(() => context.storageState({ path: file }))
+
           return file
         }),
       )
@@ -93,8 +96,10 @@ export const AppSessionsLayer = Layer.effect(
         const url = yield* hooks.appUrl()
         const key = appSessionKey({ host: new URL(url).host, user, params })
         const file = store.authFile(key)
+
         if (!fresh && (yield* isFresh(file))) return file
         const startedAt = Date.now()
+
         return yield* withLock(
           key,
           file,
@@ -105,7 +110,9 @@ export const AppSessionsLayer = Layer.effect(
                 .then((info) => info.mtimeMs >= startedAt)
                 .catch(() => false),
             )
+
             if (loggedInMeanwhile || (!fresh && (yield* isFresh(file)))) return file
+
             return yield* logInTo({ url, file, user, params })
           }),
         )

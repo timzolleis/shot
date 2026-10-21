@@ -74,10 +74,13 @@ export const SourceProvidersLayer = Layer.effect(
       store: yield* ArtifactStore,
       config: yield* ShotConfig,
     }
+
     return SourceProviders.of({
       resolveSource: ({ raw, as, params }) => {
         if (/^https?:\/\//.test(raw)) return Effect.succeed({ _tag: 'UrlSource' as const, url: raw })
+
         if (raw.startsWith('/')) return resolveRouteSource({ deps, path: raw, as, params })
+
         return new SourceNotFoundError({ raw, reason: 'pass a URL (https://…) or an app path (/settings)' })
       },
       openSource: ({ source, variant, options }) =>

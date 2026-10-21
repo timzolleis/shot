@@ -30,8 +30,10 @@ export class AppHooks extends Context.Service<
 const appHealthy = (url: string) =>
   Effect.promise(async () => {
     const context = await request.newContext({ ignoreHTTPSErrors: true })
+
     try {
       const response = await context.get(url, { timeout: 5000, maxRedirects: 0 })
+
       return { reachable: true, ok: response.ok() }
     } catch {
       return { reachable: false, ok: false }
@@ -51,6 +53,7 @@ export const AppHooksLayer = Layer.effect(
   Effect.gen(function* () {
     const config = yield* ShotConfig
     const app = config.app
+
     const failed = (hook: string, user: Option.Option<string>) => (message: string) =>
       new AppHookFailedError({ hook, user, message })
 
@@ -60,9 +63,12 @@ export const AppHooksLayer = Layer.effect(
       const health = Option.flatMap(app, (config) => Option.fromNullishOr(config.health))
       const checked = yield* appHealthy(`${url}${Option.getOrElse(health, () => '')}`)
       const running = Option.isSome(health) ? checked.ok : checked.reachable
+
       if (!running) return yield* new AppNotRunningError({ url })
+
       return url
     })
+
     // One URL and health check per run, not one per page.
     const appUrl = yield* Effect.cached(resolveAppUrl)
 

@@ -70,7 +70,9 @@ const configNames = ['shot.config.ts', 'shot.config.mts', 'shot.config.js', 'sho
 export const findConfigFile = (from: string): Option.Option<string> => {
   for (let dir = path.resolve(from); ; dir = path.dirname(dir)) {
     const found = configNames.map((name) => path.join(dir, name)).find((file) => existsSync(file))
+
     if (found !== undefined) return Option.some(found)
+
     if (path.dirname(dir) === dir) return Option.none()
   }
 }
@@ -85,6 +87,7 @@ export class ShotConfigInvalidError extends Data.TaggedError('ShotConfigInvalidE
 export const loadShotConfig = (cwd: string) =>
   Effect.gen(function* () {
     const configFile = findConfigFile(cwd)
+
     const loaded = yield* Option.match(configFile, {
       onNone: () => Effect.succeed<ShotConfigInput>({}),
       onSome: (file) =>
@@ -95,11 +98,13 @@ export const loadShotConfig = (cwd: string) =>
           Effect.flatMap((module) =>
             Effect.gen(function* () {
               if (typeof module.default === 'object' && module.default !== null) return module.default as ShotConfigInput
+
               return yield* new ShotConfigInvalidError({ file, reason: 'the default export is not defineConfig({...})' })
             }),
           ),
         ),
     })
+
     return ShotConfig.of({
       projectRoot: Option.match(configFile, { onNone: () => cwd, onSome: (file) => path.dirname(file) }),
       configFile,

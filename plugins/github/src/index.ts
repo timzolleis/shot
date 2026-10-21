@@ -26,6 +26,7 @@ export const GhCliLayer = Layer.effect(
   Effect.gen(function* () {
     const store = yield* ArtifactStore
     const context = yield* Effect.context<never>()
+
     return GhCli.of({
       runGh: (args) =>
         runProcess({ command: 'gh', args, cwd: store.projectRoot }).pipe(Effect.provideContext(context)) as Effect.Effect<ProcessOutput>,
@@ -40,10 +41,13 @@ export const ghVersionFromOutput = (output: string): string | undefined => /gh v
 
 export const isGhVersionSupported = (version: string): boolean => {
   const parts = version.split('.').map(Number)
+
   for (let index = 0; index < minimumGhVersion.length; index++) {
     const part = parts[index] ?? 0
+
     if (part !== minimumGhVersion[index]) return part > minimumGhVersion[index]!
   }
+
   return true
 }
 
@@ -64,23 +68,31 @@ export const publishEvidenceToPr = Effect.fn('github.publishEvidence')(function*
   const gh = yield* GhCli
   const store = yield* ArtifactStore
   const versionOutput = yield* gh.runGh(['--version'])
+
   if (versionOutput.exitCode !== 0) return yield* new GhMissingError({ reason: firstLine(versionOutput.stderr) || 'gh is not installed' })
   const version = ghVersionFromOutput(versionOutput.stdout) ?? '0.0.0'
+
   if (!isGhVersionSupported(version)) return yield* new GhTooOldError({ version })
 
   const repo = yield* gh.runGh(['repo', 'view', '--json', 'nameWithOwner,viewerPermission'])
+
   if (repo.exitCode !== 0) return yield* new GhMissingError({ reason: firstLine(repo.stderr) })
   const { nameWithOwner, viewerPermission } = JSON.parse(repo.stdout) as { nameWithOwner: string; viewerPermission: string | null }
+
   if (!pushPermissions.has(viewerPermission ?? '')) {
     return yield* new NoPushAccessError({ repository: nameWithOwner, permission: viewerPermission ?? '' })
   }
 
   const view = yield* gh.runGh(['pr', 'view', ...(pr === undefined ? [] : [String(pr)]), '--json', 'number,body,url'])
+
   if (view.exitCode !== 0) {
     const branch = /no pull requests? found for branch "([^"]+)"/.exec(view.stderr)?.[1]
+
     if (branch !== undefined) return yield* new NoPullRequestError({ branch })
+
     return yield* new GhCommandFailedError({ command: 'gh pr view', stderr: view.stderr })
   }
+
   const current = JSON.parse(view.stdout) as { number: number; body: string; url: string }
   const body = prBodyWithEvidence({ body: current.body, evidenceMarkdown: evidenceMarkdownFromReport(report) })
   const bodyFile = path.join(store.sessionDir, 'report', 'pr-body.md')
@@ -89,6 +101,7 @@ export const publishEvidenceToPr = Effect.fn('github.publishEvidence')(function*
     await writeFile(store.absolutePath(bodyFile), body)
   })
   const files = [...new Set(evidenceFilesFromReport(report))]
+
   const edit = yield* gh.runGh([
     'pr',
     'edit',
@@ -97,7 +110,9 @@ export const publishEvidenceToPr = Effect.fn('github.publishEvidence')(function*
     bodyFile,
     ...files.flatMap((file) => ['--attach', file]),
   ])
+
   if (edit.exitCode !== 0) return yield* new GhCommandFailedError({ command: 'gh pr edit', stderr: edit.stderr })
+
   return { url: current.url, attachments: files.length }
 })
 

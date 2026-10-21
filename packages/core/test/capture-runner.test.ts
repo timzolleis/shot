@@ -25,9 +25,11 @@ beforeAll(async () => {
   appUrl = started.url
   process.env['FIXTURE_URL'] = appUrl
   process.env['SHOT_SESSION'] = 'runner-test'
+
   for (const dir of ['runner-test', 'runner-test-parallel', 'auth']) {
     rmSync(path.join(fixtureDir, '.shots', dir), { recursive: true, force: true })
   }
+
   runtime = ManagedRuntime.make(shotLayer(fixtureDir) as Layer.Layer<ShootTargetService | RecordFlowService, unknown>)
 })
 
@@ -61,6 +63,7 @@ describe('CaptureRunner against the fixture app', () => {
         { _tag: 'Key', key: 'Enter' },
       ],
     })
+
     expect(result!._tag).toBe('CapturedResult')
     expect(result!.findings.map((finding) => `${finding.check}: ${finding.message}`)).toContain(
       'console: blocked PATCH /api/settings',

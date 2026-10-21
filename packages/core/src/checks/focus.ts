@@ -14,20 +14,26 @@ export const focusCheck: CaptureCheck = {
   runCheck: ({ page: { page }, capture }) =>
     Effect.gen(function* () {
       const step = capture.scene.findLast((candidate): candidate is FocusStep => candidate._tag === 'Focus')
+
       if (step === undefined) return []
+
       const area = yield* Effect.promise(() =>
         page.evaluate(() => {
           const element = document.activeElement
+
           if (element === null || element === document.body) return undefined
           const rect = element.getBoundingClientRect()
+
           return { x: rect.left + scrollX - 8, y: rect.top + scrollY - 8, width: rect.width + 16, height: rect.height + 16 }
         }),
       )
+
       if (area === undefined) {
         return [
           { check: 'focus', severity: 'error' as const, message: 'nothing is focused after the focus step', selector: step.selector, rect: Option.none() },
         ]
       }
+
       const clip = { ...area, x: Math.max(0, area.x), y: Math.max(0, area.y) }
       const focused = yield* Effect.promise(() => page.screenshot({ fullPage: true, clip }))
       yield* Effect.promise(() => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur()))
@@ -38,6 +44,7 @@ export const focusCheck: CaptureCheck = {
         await page.locator(step.selector).first().focus()
       })
       yield* settlePage(page)
+
       return focused.equals(blurred)
         ? [
             {

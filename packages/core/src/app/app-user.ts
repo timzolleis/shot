@@ -18,9 +18,11 @@ export const appSessionKey = ({
   readonly params: Readonly<Record<string, string>>
 }): string => {
   const slug = (text: string) => text.toLowerCase().replaceAll(/[^a-z0-9@.]+/g, '-')
+
   const paramsPart = Object.keys(params)
     .sort()
     .map((name) => `${slug(name)}=${slug(params[name] ?? '')}`)
     .join(',')
+
   return `${host}/${slug(user)}--${paramsPart === '' ? 'default' : paramsPart}`
 }

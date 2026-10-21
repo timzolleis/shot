@@ -17,6 +17,7 @@ export const EvidencePublishersLayer = Layer.effect(
   Effect.gen(function* () {
     const config = yield* ShotConfig
     const context = yield* Effect.context<never>()
+
     return EvidencePublishers.of({
       publishers: config.plugins
         .flatMap((plugin) => plugin.publishers ?? [])
@@ -52,25 +53,31 @@ export const PublishEvidenceServiceLayer = Layer.effect(
   Effect.gen(function* () {
     const store = yield* ArtifactStore
     const { publishers } = yield* EvidencePublishers
+
     return PublishEvidenceService.of({
       publishEvidence: Effect.fn('PublishEvidenceService.publishEvidence')(function* ({ publisher: name, pr }) {
         const publisher = Option.match(name, {
           onNone: () => publishers[0],
           onSome: (wanted) => publishers.find((candidate) => candidate.publisher === wanted),
         })
+
         if (publisher === undefined) {
           return yield* new PublisherNotFoundError({
             publisher: Option.getOrElse(name, () => ''),
             available: publishers.map((candidate) => candidate.publisher),
           })
         }
+
         const session = yield* store.readSession()
+
         if (session.labels.every((label) => label.captures.length === 0 && label.flows.length === 0)) {
           return yield* new NoEvidenceError({ session: session.name })
         }
+
         const report = evidenceReportFromSession(session)
         const reportFile = yield* store.writeReport(report)
         const published = yield* publisher.publishEvidence({ report, pr: Option.getOrUndefined(pr) })
+
         return { reportFile, published }
       }),
     })

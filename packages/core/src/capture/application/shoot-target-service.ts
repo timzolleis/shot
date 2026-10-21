@@ -54,16 +54,22 @@ export const ShootTargetServiceLayer = Layer.effect(
     return ShootTargetService.of({
       shootTarget: Effect.fn('ShootTargetService.shootTarget')(function* ({ raw, as, params, label, flags, runChecks }) {
         const source = yield* providers.resolveSource({ raw, as, params })
+
         if (isPlanInFlags(flags)) {
           const plan = yield* Effect.fromResult(planCapturesFromFlags({ source, flags }))
           const results = yield* runner.runPlan({ plan, label, runChecks })
           yield* store.writeManifest({ label, results })
+
           return results
         }
+
         const outline = yield* outlineOf(source, flags).pipe(Effect.result)
+
         if (outline._tag === 'Failure') {
           const error = outline.failure
+
           if (isRunPlanError(error)) return yield* error
+
           // The source did not render: the page capture fails with the reason, not the command (A3).
           const results = planDefaultCaptures({ source, flags, sections: [] }).map(
             (capture): CaptureResult => ({
@@ -73,16 +79,21 @@ export const ShootTargetServiceLayer = Layer.effect(
               findings: [renderFindingFromReason(reasonFromCaptureFailure(error))],
             }),
           )
+
           yield* store.writeManifest({ label, results })
+
           return results
         }
+
         const plan = planDefaultCaptures({ source, flags, sections: outline.success.map((entry) => entry.title) })
         const results = yield* runner.runPlan({ plan, label, runChecks })
         yield* store.writeManifest({ label, results })
+
         return results
       }),
       readTargetOutline: Effect.fn('ShootTargetService.readTargetOutline')(function* ({ raw, as, params, flags }) {
         const source = yield* providers.resolveSource({ raw, as, params })
+
         return { source, outline: yield* outlineOf(source, flags) }
       }),
     })

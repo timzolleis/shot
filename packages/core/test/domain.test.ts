@@ -20,6 +20,7 @@ const failureTag = (result: Result.Result<unknown, { readonly _tag: string }>) =
 const onlyCapture = (flags: typeof defaultShootFlags): Capture => {
   const plan = Result.getOrThrow(planCapturesFromFlags({ source: persons, flags }))
   expect(plan).toHaveLength(1)
+
   return plan[0]!
 }
 
@@ -65,6 +66,7 @@ describe('planCapturesFromFlags', () => {
         { _tag: 'Key', key: 'Enter' },
       ],
     })
+
     expect(capture.scene.map((step) => step._tag)).toEqual(['Click', 'Key', 'Focus'])
   })
 })
@@ -118,6 +120,7 @@ describe('evidenceReportFromSession (11)', () => {
   it('same capture key under before and after → one sheet, two columns', () => {
     const capture = onlyCapture(defaultShootFlags)
     const key = captureKey(capture)
+
     const captured = (label: string): CaptureResult => ({
       _tag: 'CapturedResult',
       capture,
@@ -126,6 +129,7 @@ describe('evidenceReportFromSession (11)', () => {
       measurements: null,
       findings: [],
     })
+
     const session: Session = {
       name: 's',
       dir: '.shots/s',
@@ -134,6 +138,7 @@ describe('evidenceReportFromSession (11)', () => {
         { label: 'after', captures: [captured('after')], flows: [] },
       ],
     }
+
     const report = evidenceReportFromSession(session)
     expect(report.sheets).toHaveLength(1)
     expect(report.sheets[0]!.columns.map((column) => column.label)).toEqual(['before', 'after'])

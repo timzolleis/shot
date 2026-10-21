@@ -53,14 +53,18 @@ export const resolveRouteSource = ({
     if (path.includes('/:')) {
       return yield* new SourceNotFoundError({ raw: path, reason: 'the path has a :param; fill it with a real id' })
     }
+
     const url = yield* deps.hooks.appUrl()
     const defaults = yield* deps.store.readHostDefaults(new URL(url).host)
+
     const user = Option.match(as, {
       onNone: () => Option.map(defaults, (found) => found.user),
       onSome: (alias) => Option.some(userFromAlias({ as: alias, users: deps.hooks.users })),
     })
+
     if (Option.isNone(user)) return yield* new UserMissingError({ path })
     const defaultParams = Option.isNone(as) ? Option.getOrElse(Option.map(defaults, (found) => found.params), () => ({})) : {}
+
     return { _tag: 'RouteSource', path, user: user.value, params: { ...defaultParams, ...params } } satisfies RouteSource
   })
 
@@ -88,9 +92,11 @@ export const openRouteSource = ({
     const url = yield* deps.hooks.appUrl()
     const target = new URL(source.path, url)
     const contextOptions = yield* contextOptionsFromVariant(variant)
+
     for (let attempt = 1; ; attempt++) {
       const session = { user: source.user, params: source.params }
       const storageState = attempt === 1 ? yield* deps.sessions.getAppSession(session) : yield* deps.sessions.renewAppSession(session)
+
       const context = yield* deps.browser.newContext({
         ...contextOptions,
         storageState,
@@ -99,6 +105,7 @@ export const openRouteSource = ({
           onSome: (dir) => ({ recordVideo: { dir, size: contextOptions.viewport ?? { width: 1280, height: 900 } } }),
         }),
       })
+
       yield* deps.hooks.applyTheme({ context, url, mode: variant.mode })
       yield* prepareContext({
         context,
@@ -106,6 +113,7 @@ export const openRouteSource = ({
         determinism: deps.config.determinism.routes === true ? Option.some(deps.config.determinism) : Option.none(),
       })
       const log = makeErrorLog()
+
       if (deps.hooks.writes === 'block') yield* blockWrites({ context, origin: target.origin, log })
       const page = yield* Effect.promise(() => context.newPage())
       collectPageErrors(page, log)
@@ -116,35 +124,47 @@ export const openRouteSource = ({
         catch: (error) =>
           new SourceRenderFailedError({ source, reason: `could not load the page (${String(error).split('\n')[0]})` }),
       })
+
       if (response !== null && response.status() >= 400) {
         return yield* new SourceRenderFailedError({ source, reason: `the server answered ${response.status()}` })
       }
+
       const waitForLoad = Effect.promise(async () => {
         await page.waitForLoadState('load', { timeout: renderTimeoutMs }).catch(() => undefined)
         await networkQuiet()
       })
+
       const ready = yield* deps.hooks.waitUntilReady({ page, waitForLoad }).pipe(
         Effect.timeoutOption(renderTimeoutMs),
         Effect.result,
       )
+
       const landed = new URL(page.url())
+
       if (deps.hooks.isLoginPage(landed)) {
         if (attempt === 1) {
           yield* Effect.promise(() => context.close())
           continue
         }
+
         return yield* new SourceRedirectedError({ source, landedOn: `${landed.pathname}${landed.search}` })
       }
+
       if (ready._tag === 'Failure') return yield* new SourceRenderFailedError({ source, reason: ready.failure.message })
+
       if (Option.isNone(ready.success)) {
         return yield* new SourceTimedOutError({ source, waitedMs: renderTimeoutMs, consoleErrors: [...log.errors] })
       }
+
       if (landed.pathname !== target.pathname) {
         return yield* new SourceRedirectedError({ source, landedOn: `${landed.pathname}${landed.search}` })
       }
+
       yield* Effect.promise(networkQuiet)
       yield* deps.runtime.injectRuntime(page)
+
       if (options.settle) yield* settlePage(page)
+
       return { page, context, source, variant, consoleErrors: log.errors } satisfies ReadyPage
     }
   })

@@ -30,18 +30,22 @@ const ok = (stdout: string): ProcessOutput => ({ exitCode: 0, stdout, stderr: ''
 /** gh answers from a table; every call is recorded. */
 const fakeGh = (answers: Record<string, ProcessOutput>) => {
   const calls: Array<ReadonlyArray<string>> = []
+
   const layer = Layer.succeed(GhCli, {
     runGh: (args) =>
       Effect.sync(() => {
         calls.push(args)
         const answer = Object.entries(answers).find(([prefix]) => args.join(' ').startsWith(prefix))
+
         return answer?.[1] ?? { exitCode: 1, stdout: '', stderr: `unexpected: gh ${args.join(' ')}` }
       }),
   })
+
   return { calls, layer }
 }
 
 const projectRoot = mkdtempSync(path.join(tmpdir(), 'shot-github-'))
+
 const store = Layer.succeed(ArtifactStore, {
   projectRoot,
   sessionName: 's',
@@ -70,6 +74,7 @@ describe('publishEvidenceToPr', () => {
         '--version': ok('gh version 2.99.0 (2026-09-01)\n'),
         'repo view': ok(JSON.stringify({ nameWithOwner: 'acme/shot', viewerPermission: 'READ' })),
       })
+
       expect(yield* publish(gh)).toBe('NoPushAccessError')
     }),
   )
@@ -81,6 +86,7 @@ describe('publishEvidenceToPr', () => {
         'repo view': repo,
         'pr view': { exitCode: 1, stdout: '', stderr: 'no pull requests found for branch "feat/x"\n' },
       })
+
       expect(yield* publish(gh)).toBe('NoPullRequestError')
     }),
   )
@@ -93,6 +99,7 @@ describe('publishEvidenceToPr', () => {
         'pr view': ok(JSON.stringify({ number: 812, body: 'Fixes the list.', url: 'https://github.com/acme/shot/pull/812' })),
         'pr edit': ok(''),
       })
+
       expect(yield* publish(gh)).toBe('ok')
       const edit = gh.calls.find((args) => args[0] === 'pr' && args[1] === 'edit')!
       expect(edit).toEqual([

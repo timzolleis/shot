@@ -57,6 +57,7 @@ export const isPlanInFlags = (flags: ShootFlags): boolean =>
 /** `Sizes`, or `Sizes >> nth=1` for a title that appears more than once. */
 export const sectionFromTitle = (text: string): Extract<Part, { _tag: 'Section' }> => {
   const match = /^(.*?)\s*>>\s*nth=(\d+)$/.exec(text)
+
   return match === null
     ? { _tag: 'Section', title: text, nth: Option.none() }
     : { _tag: 'Section', title: match[1] ?? '', nth: Option.some(Number(match[2])) }
@@ -78,27 +79,36 @@ const outputFromFlags = (flags: ShootFlags): Result.Result<Output, ConflictingOu
     ...(Option.isSome(flags.measure) ? ['--measure'] : []),
     ...(flags.aria ? ['--aria'] : []),
   ]
+
   const stillOnly = [
     ...(flags.overlays.length > 0 ? ['--overlay'] : []),
     ...(Option.isSome(flags.loupe) ? ['--loupe'] : []),
   ]
+
   if (picked.length > 1 || (picked.length === 1 && stillOnly.length > 0)) {
     return Result.fail(new ConflictingOutputsError({ outputs: [...picked, ...stillOnly] }))
   }
+
   if (Option.isSome(flags.frames)) return Result.succeed({ _tag: 'Frames', ...flags.frames.value })
+
   if (Option.isSome(flags.measure)) return Result.succeed({ _tag: 'Measure', ...flags.measure.value })
+
   if (flags.aria) return Result.succeed({ _tag: 'AriaTree' })
+
   return Result.succeed({ _tag: 'Still', overlays: flags.overlays, loupe: flags.loupe })
 }
 
 const partsFromFlags = (flags: ShootFlags): ReadonlyArray<Part> => {
   if (flags.selects.length > 0) {
     const scopes = flags.sections.length > 0 ? flags.sections.map((title) => Option.some(title)) : [Option.none()]
+
     return flags.selects.flatMap((selector) =>
       scopes.map((within): Part => ({ _tag: 'Selected', selector, within })),
     )
   }
+
   if (flags.sections.length > 0) return flags.sections.map(sectionFromTitle)
+
   return [flags.viewport ? { _tag: 'Viewport' } : { _tag: 'WholePage' }]
 }
 
@@ -164,6 +174,7 @@ export const planDefaultCaptures = ({
         : sections.map((title, index): Part => {
             const repeats = sections.filter((other) => other === title).length
             const nth = sections.slice(0, index).filter((other) => other === title).length
+
             return { _tag: 'Section', title, nth: repeats > 1 ? Option.some(nth) : Option.none() }
           }),
     output: { _tag: 'Still', overlays: [], loupe: Option.none() },

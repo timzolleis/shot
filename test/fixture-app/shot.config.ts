@@ -14,6 +14,7 @@ export default defineConfig({
       await page.click('button[type=submit]')
       await page.waitForLoadState('load')
       const refused = page.locator('[role=alert]')
+
       if ((await refused.count()) > 0) throw new Error(await refused.innerText())
     },
   },

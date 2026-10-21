@@ -20,19 +20,24 @@ import { FillValue, LabelValue, stepsFromArgv } from './flags.ts'
 import { anyErrorFinding, displayPath, printCaptureResults, printLine } from './output.ts'
 
 const asFlag = Flag.String('as').pipe(Flag.withDescription('the user: an alias from the config, or an email'), Flag.optional)
+
 const paramFlag = Flag.KeyValuePair('param').pipe(
   Flag.withDescription('a login param for the logIn hook, name=value (e.g. org=acme); repeatable'),
   Flag.withDefault({}),
 )
+
 const labelFlag = Flag.String('label').pipe(
   Flag.withSchema(LabelValue),
   Flag.withDescription('write into .shots/<session>/<label>/ (before, after); same keys across labels'),
   Flag.withDefault(''),
 )
+
 const jsonFlag = Flag.Boolean('json').pipe(Flag.withDescription('print results as JSON'), Flag.withDefault(false))
 const steps = (name: string, description: string) => Flag.String(name).pipe(Flag.withDescription(description), Flag.atLeast(0))
+
 const optionalNumber = (name: string, description: string) =>
   Flag.Finite(name).pipe(Flag.withDescription(description), Flag.optional)
+
 const optionalCount = (name: string, description: string) =>
   Flag.Int(name).pipe(Flag.withSchema(Schema.Int.pipe(Schema.check(Schema.isGreaterThan(0)))), Flag.withDescription(description), Flag.optional)
 
@@ -117,6 +122,7 @@ const encodeFlowJson = Schema.encodeSync(Schema.toCodecJson(FlowResult))
 export const shot = Command.make('shot', shootFlags, (input) =>
   Effect.gen(function* () {
     const service = yield* ShootTargetService
+
     const results = yield* service.shootTarget({
       raw: input.target,
       as: input.as,
@@ -125,8 +131,10 @@ export const shot = Command.make('shot', shootFlags, (input) =>
       flags: shootFlagsFromInput(input),
       runChecks: input.check,
     })
+
     if (input.json) yield* printLine(JSON.stringify(encodeResultsJson(results), null, 2))
     else yield* printCaptureResults(results)
+
     if (anyErrorFinding(results)) process.exitCode = 1
   }),
 ).pipe(
@@ -157,12 +165,14 @@ const flow = Command.make(
     Effect.gen(function* () {
       const service = yield* RecordFlowService
       const result = yield* service.recordFlow({ flow: raw, label })
+
       if (json) yield* printLine(JSON.stringify(encodeFlowJson(result), null, 2))
       else {
         for (const still of result.stills) yield* printLine(yield* displayPath(still.file))
         yield* printLine(yield* displayPath(result.video))
         yield* printLine(yield* displayPath(result.trace))
       }
+
       if (result._tag === 'StoppedFlow') {
         yield* printLine(`error flow     ${result.flow.name}: step ${result.failedStep}: ${result.reason}`)
         process.exitCode = 1

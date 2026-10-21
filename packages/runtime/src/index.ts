@@ -2,8 +2,11 @@
 import type { PageRuntime } from './page-runtime.ts'
 
 export type { Rect } from './dom.ts'
+
 export type { OverlayKind } from './overlays.ts'
+
 export type { RuntimeFinding, RuntimeSection } from './types.ts'
+
 export type { PageRuntime }
 
 /** The runtime's entry file, for bundling. */

@@ -39,14 +39,18 @@ export const SheetsLayer = Layer.effect(
     const pageRef = yield* Ref.make(Option.none<Page>())
     // One page draws every sheet: concurrent captures take turns.
     const drawing = yield* Semaphore.make(1)
+
     const sheetPage = Effect.gen(function* () {
       const existing = yield* Ref.get(pageRef)
+
       if (Option.isSome(existing)) return existing.value
       const context = yield* browser.newContext({ deviceScaleFactor: 1 }).pipe(Scope.provide(scope))
       const page = yield* Effect.promise(() => context.newPage())
       yield* Ref.set(pageRef, Option.some(page))
+
       return page
     })
+
     const withPage = <A, E>(use: (page: Page) => Effect.Effect<A, E>) =>
       Semaphore.withPermit(drawing, Effect.flatMap(sheetPage, use))
 
@@ -61,6 +65,7 @@ export const SheetsLayer = Layer.effect(
             await page.evaluate(
               async ({ cells, columns, maxWidth }) => {
                 const grid = document.querySelector<HTMLElement>('#grid')!
+
                 const images = await Promise.all(
                   cells.map(
                     (cell) =>
@@ -71,6 +76,7 @@ export const SheetsLayer = Layer.effect(
                       }),
                   ),
                 )
+
                 const widest = Math.max(...images.map((image) => image.naturalWidth))
                 const perRow = columns ?? Math.max(1, Math.min(cells.length, Math.floor(maxWidth / (widest + 12))))
                 grid.style.gridTemplateColumns = `repeat(${perRow}, max-content)`
@@ -87,6 +93,7 @@ export const SheetsLayer = Layer.effect(
               },
               { cells: cells.map((cell) => ({ src: dataUrl(cell.png), label: cell.label })), columns, maxWidth: maxSheetWidth },
             )
+
             return new Uint8Array(await page.locator('#sheet').screenshot())
           }),
         ),
@@ -96,6 +103,7 @@ export const SheetsLayer = Layer.effect(
             yield* Effect.promise(() =>
               page.setContent('<!doctype html><html><body style="margin:0;background:#fff"><canvas id="loupe"></canvas></body></html>'),
             )
+
             const size = yield* Effect.promise(() =>
               page.evaluate(
                 async ({ src, factor }) => {
@@ -104,14 +112,17 @@ export const SheetsLayer = Layer.effect(
                     image.onload = resolve
                     image.src = src
                   })
+
                   return { width: image.naturalWidth * factor, height: image.naturalHeight * factor }
                 },
                 { src: dataUrl(png), factor },
               ),
             )
+
             if (size.width > maxLoupeSize || size.height > maxLoupeSize) {
               return yield* new LoupeTooLargeError({ factor, width: size.width, height: size.height })
             }
+
             return yield* Effect.promise(async () => {
               await page.evaluate(
                 async ({ src, factor }) => {
@@ -126,14 +137,18 @@ export const SheetsLayer = Layer.effect(
                   const context = canvas.getContext('2d')!
                   context.imageSmoothingEnabled = false
                   context.drawImage(image, 0, 0, canvas.width, canvas.height)
+
                   if (factor >= 4) {
                     context.fillStyle = 'rgba(127,127,127,0.35)'
+
                     for (let x = factor; x < canvas.width; x += factor) context.fillRect(x, 0, 1, canvas.height)
+
                     for (let y = factor; y < canvas.height; y += factor) context.fillRect(0, y, canvas.width, 1)
                   }
                 },
                 { src: dataUrl(png), factor },
               )
+
               return new Uint8Array(await page.locator('#loupe').screenshot())
             })
           }),

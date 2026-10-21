@@ -70,8 +70,10 @@ export const CaptureRunnerLayer = Layer.effect(
         const { page } = ready
         const resolved = yield* runtime.resolvePart({ page, part: capture.part, all: false })
         const findings = runChecks ? yield* checks.runCaptureChecks({ page: ready, capture, roots: resolved.roots }) : []
+
         const measurements =
           output.overlays.length === 0 ? undefined : yield* runtime.drawOverlays({ roots: resolved.roots, overlays: output.overlays })
+
         // Infinite animations cancel to their start: CSS and WAAPI through Playwright, SVG SMIL paused at 0 here.
         yield* Effect.promise(() =>
           page.evaluate(() => {
@@ -81,6 +83,7 @@ export const CaptureRunnerLayer = Layer.effect(
             }
           }),
         )
+
         const screenshot = yield* Effect.promise(() =>
           page.screenshot({
             animations: 'disabled',
@@ -90,11 +93,14 @@ export const CaptureRunnerLayer = Layer.effect(
             }),
           }),
         )
+
         if (output.overlays.length > 0) yield* runtime.clearOverlays(page)
+
         const png = yield* Option.match(output.loupe, {
           onNone: () => Effect.succeed(new Uint8Array(screenshot)),
           onSome: (factor) => sheets.loupe({ png: new Uint8Array(screenshot), factor }),
         })
+
         return { content: png, measurements, findings } satisfies Produced
       })
 
@@ -107,30 +113,39 @@ export const CaptureRunnerLayer = Layer.effect(
         const { page, context } = ready
         const { count, everyMs, slow } = output
         const part = capture.part
+
         const locator: Locator | undefined =
           part._tag === 'Section'
             ? (yield* runtime.resolvePart({ page, part, all: false })).roots[0]
             : part._tag === 'Selected'
               ? page.locator(part.selector).filter({ visible: true }).first()
               : undefined
+
         const last = capture.scene.at(-1)
+
         const shots = yield* Effect.promise(async () => {
           await locator?.scrollIntoViewIfNeeded({ timeout: 1000 }).catch(() => undefined)
           const cdp = await context.newCDPSession(page)
           await cdp.send('Animation.enable')
           await cdp.send('Animation.setPlaybackRate', { playbackRate: slow })
           await page.evaluate((rate) => (window as unknown as { __shotSetSlow?: (rate: number) => void }).__shotSetSlow?.(rate), slow)
+
           return { cdp }
         })
+
         if (last !== undefined) yield* runStep({ page, step: last })
+
         const taken = yield* Effect.promise(async () => {
           const start = Date.now()
           const list: Array<{ png: Uint8Array; ms: number }> = []
           const rects: Array<Rect> = []
+
           for (let index = 0; index < count; index++) {
             const due = start + (index * everyMs) / slow
+
             if (due > Date.now()) await new Promise((resolve) => setTimeout(resolve, due - Date.now()))
             const ms = Math.round((Date.now() - start) * slow)
+
             const [png, box] = await Promise.all([
               page.screenshot({ fullPage: false }),
               // No waiting: a part that is not there yet is simply not in this frame.
@@ -138,20 +153,27 @@ export const CaptureRunnerLayer = Layer.effect(
                 ? undefined
                 : locator.count().then((found) => (found === 0 ? null : locator.boundingBox({ timeout: 200 }).catch(() => null))),
             ])
+
             list.push({ png: new Uint8Array(png), ms })
+
             if (box !== null && box !== undefined && box.width > 0) rects.push(box)
           }
+
           await shots.cdp.send('Animation.setPlaybackRate', { playbackRate: 1 })
+
           return { list, rects }
         })
+
         if (locator !== undefined && taken.rects.length === 0) {
           return yield* new SelectionNotFoundError({
             selector: partDescription(part),
             reason: `never appeared during the ${count} frames`,
           })
         }
+
         const viewport = page.viewportSize() ?? { width: 1280, height: 900 }
         const rects = taken.rects
+
         const area =
           rects.length === 0
             ? undefined
@@ -164,7 +186,9 @@ export const CaptureRunnerLayer = Layer.effect(
                 },
                 bounds: viewport,
               })
+
         const scale = capture.variant.scale
+
         const cells = taken.list.map(({ png, ms }, index) => ({
           png:
             area === undefined
@@ -175,11 +199,14 @@ export const CaptureRunnerLayer = Layer.effect(
                 }),
           label: `${index + 1} · ${ms}ms`,
         }))
+
         const sheet = yield* sheets.composeSheet({
           cells,
           title: `${sourceDescription(capture.source)} ${captureSlug(capture)} (every ${everyMs}ms, slow ${slow})`,
         })
+
         const measurements = { area, frames: taken.list.map(({ ms }, index) => ({ index: index + 1, ms })) }
+
         return { content: sheet, measurements, findings: [] } satisfies Produced
       })
 
@@ -188,6 +215,7 @@ export const CaptureRunnerLayer = Layer.effect(
         // Apps that scroll inside a shell: grow the viewport to the content, except for a viewport shot or frames.
         yield* fitContent({ page: ready.page, expand: capture.part._tag !== 'Viewport' && capture.output._tag !== 'Frames' })
         const output = capture.output
+
         return yield* Match.valueTags(output, {
           Still: (still_) => still(ready, capture, runChecks, still_),
           Frames: (frames_) => frames(ready, capture, frames_),
@@ -195,12 +223,14 @@ export const CaptureRunnerLayer = Layer.effect(
             Effect.gen(function* () {
               const resolved = yield* runtime.resolvePart({ page: ready.page, part: capture.part, all })
               const data = yield* runtime.measureElements({ roots: resolved.roots, styles })
+
               return { content: JSON.stringify(data, null, 2), measurements: data, findings: [] } satisfies Produced
             }),
           AriaTree: () =>
             Effect.gen(function* () {
               const resolved = yield* runtime.resolvePart({ page: ready.page, part: capture.part, all: false })
               const snapshots = yield* Effect.promise(() => Promise.all(resolved.roots.map((root) => root.ariaSnapshot())))
+
               return { content: `${snapshots.join('\n\n')}\n`, measurements: undefined, findings: [] } satisfies Produced
             }),
         })
@@ -218,6 +248,7 @@ export const CaptureRunnerLayer = Layer.effect(
         Effect.gen(function* () {
           const first = captures[0]!
           const isFrames = first.output._tag === 'Frames'
+
           const opened = yield* providers
             .openSource({
               source: first.source,
@@ -225,19 +256,27 @@ export const CaptureRunnerLayer = Layer.effect(
               options: { settle: !isFrames || first.scene.length > 1, slowClock: isFrames, recordVideoDir: Option.none() },
             })
             .pipe(Effect.result)
+
           if (opened._tag === 'Failure') {
             const error = opened.failure
+
             if (isRunPlanError(error)) return yield* error
+
             return captures.map((capture) => failedResult(capture, [renderFindingFromReason(reasonFromCaptureFailure(error))]))
           }
+
           const ready = opened.success
+
           if (first.scene.some((step) => step._tag === 'Press')) {
             yield* Effect.addFinalizer(() => Effect.promise(() => ready.page.mouse.up().catch(() => undefined)))
           }
+
           const scene = isFrames ? first.scene.slice(0, -1) : first.scene
+
           const sceneRun = yield* Effect.forEach(scene, (step) =>
             runStep({ page: ready.page, step }).pipe(Effect.andThen(settlePage(ready.page))),
           ).pipe(Effect.result)
+
           if (sceneRun._tag === 'Failure') {
             return captures.map((capture) =>
               failedResult(capture, [
@@ -246,22 +285,28 @@ export const CaptureRunnerLayer = Layer.effect(
               ]),
             )
           }
+
           return yield* Effect.forEach(captures, (capture, index) =>
             Effect.gen(function* () {
               const key = captureKey(capture)
               const produced = yield* produce(ready, capture, runChecks).pipe(Effect.result)
+
               if (produced._tag === 'Failure') {
                 return failedResult(capture, [renderFindingFromReason(reasonFromCaptureFailure(produced.failure as CaptureFailure))])
               }
+
               const extension = captureFileExtension(capture.output)
               const { content, measurements, findings } = produced.success
               const file = yield* store.writeCaptureFile({ label, key, extension, content, measurements })
+
               if (typeof content !== 'string') {
                 const { width, height } = pngSize(content)
+
                 if (height > tallWarningPx) {
                   process.stderr.write(`warning: ${file} is ${width}×${height}px; reads downscale it. Shoot a --section or --select.\n`)
                 }
               }
+
               return {
                 _tag: 'CapturedResult',
                 capture,
@@ -279,11 +324,14 @@ export const CaptureRunnerLayer = Layer.effect(
     return CaptureRunner.of({
       runPlan: Effect.fn('CaptureRunner.runPlan')(function* ({ plan, label, runChecks }) {
         const groups = new Map<string, Array<Capture>>()
+
         for (const capture of plan) {
           const id = captureGroupKey(capture)
           groups.set(id, [...(groups.get(id) ?? []), capture])
         }
+
         let done = 0
+
         const results = yield* Effect.forEach(
           [...groups.values()],
           (group) =>
@@ -291,6 +339,7 @@ export const CaptureRunnerLayer = Layer.effect(
               Effect.tap(() =>
                 Effect.sync(() => {
                   done++
+
                   if (groups.size > 1) {
                     process.stderr.write(`[${done}/${groups.size}] ${sourceDescription(group[0]!.source)} ${group[0]!.variant.mode}\n`)
                   }
@@ -299,7 +348,9 @@ export const CaptureRunnerLayer = Layer.effect(
             ),
           { concurrency: groupConcurrency },
         )
+
         const byKey = new Map(results.flat().map((result) => [result.key, result]))
+
         return plan.map((capture) => byKey.get(captureKey(capture))!)
       }),
       readOutline: Effect.fn('CaptureRunner.readOutline')(function* ({ source, variant }) {
@@ -310,6 +361,7 @@ export const CaptureRunnerLayer = Layer.effect(
               variant,
               options: { settle: false, slowClock: false, recordVideoDir: Option.none() },
             })
+
             return yield* runtime.readOutline(ready.page)
           }),
         )

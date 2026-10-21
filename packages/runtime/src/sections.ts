@@ -17,9 +17,12 @@ const ownHeading = (element: Element): string =>
 
 const accessibleName = (element: Element): string => {
   const label = element.getAttribute('aria-label')
+
   if (label !== null && label.trim() !== '') return label.trim()
   const labelledBy = element.getAttribute('aria-labelledby')
+
   if (labelledBy === null) return ''
+
   return labelledBy
     .split(/\s+/)
     .map((id) => textOf(document.getElementById(id)))
@@ -29,7 +32,9 @@ const accessibleName = (element: Element): string => {
 
 const sectionTitle = (element: Element): string => {
   const named = element.getAttribute('data-shot-section')
+
   if (named !== null && named.trim() !== '') return named.trim()
+
   return accessibleName(element) || ownHeading(element)
 }
 

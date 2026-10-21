@@ -33,6 +33,7 @@ export const CaptureChecksLayer = Layer.effect(
     const config = yield* ShotConfig
     const context = yield* Effect.context<never>()
     const checks = [...coreCaptureChecks, ...config.plugins.flatMap((plugin) => plugin.checks ?? [])]
+
     return CaptureChecks.of({
       runCaptureChecks: (input) =>
         Effect.forEach(

@@ -5,9 +5,11 @@ export type Hook<A> = A | Promise<A> | Effect.Effect<A, unknown>
 
 export const messageFromUnknown = (error: unknown): string => {
   if (error instanceof Error) return (error.message.split('\n')[0] ?? '').replace(/^\w+\.\w+: /, '')
+
   if (typeof error === 'object' && error !== null && 'message' in error && typeof error.message === 'string') {
     return error.message
   }
+
   return String(error)
 }
 
@@ -18,16 +20,19 @@ export const effectFromHook = <A, E>(
 ): Effect.Effect<A, E> =>
   Effect.suspend(() => {
     let returned: Hook<A>
+
     try {
       returned = evaluate()
     } catch (error) {
       return Effect.fail(onError(messageFromUnknown(error)))
     }
+
     if (Effect.isEffect(returned)) {
       return (returned as Effect.Effect<A, unknown>).pipe(
         Effect.catchCause((cause) => Effect.fail(onError(messageFromUnknown(Cause.squash(cause))))),
       )
     }
+
     return Effect.tryPromise({
       try: () => Promise.resolve(returned as A | Promise<A>),
       catch: (error) => onError(messageFromUnknown(error)),

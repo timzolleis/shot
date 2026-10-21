@@ -10,6 +10,7 @@ export const Finding = Schema.Struct({
   selector: Schema.String,
   rect: Schema.Option(Rect),
 })
+
 export type Finding = typeof Finding.Type
 
 /** A source that did not render, or a scene or part that failed: the capture has no file (A3). */
@@ -34,12 +35,15 @@ export const consoleFindingsFromErrors = (errors: ReadonlyArray<string>): Readon
 /** One finding per check, severity and message; repeats become a count. */
 export const collapsedFindings = (findings: ReadonlyArray<Finding>): ReadonlyArray<Finding> => {
   const groups = new Map<string, Array<Finding>>()
+
   for (const finding of findings) {
     const id = `${finding.check}|${finding.severity}|${finding.message}`
     groups.set(id, [...(groups.get(id) ?? []), finding])
   }
+
   return [...groups.values()].map((group) => {
     const first = group[0]!
+
     return group.length === 1 ? first : { ...first, message: `${first.message} (×${group.length})` }
   })
 }

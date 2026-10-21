@@ -19,11 +19,14 @@ const checks: Record<string, (root: Element) => ReadonlyArray<RuntimeFinding>> =
 const outline = (): ReadonlyArray<{ title: string; depth: number }> => {
   const found = genericSectionsIn(document)
   const elements = new Set(found.map((section) => section.element))
+
   return found.map((section) => {
     let depth = 0
+
     for (let parent = section.element.parentElement; parent !== null; parent = parent.parentElement) {
       if (elements.has(parent)) depth++
     }
+
     return { title: section.title, depth }
   })
 }
@@ -42,10 +45,13 @@ const markSection = (
   const exact = found.filter((section) => section.title.toLowerCase() === needle)
   const matching = exact.length > 0 ? exact : found.filter((section) => section.title.toLowerCase().includes(needle))
   const chosen = nth === undefined ? matching : matching.slice(nth, nth + 1)
+
   if (chosen.length === 1) {
     chosen[0]!.element.setAttribute('data-shot-part', mark)
+
     return { _tag: 'Marked' }
   }
+
   return chosen.length > 1 ? { _tag: 'Ambiguous', matches: chosen.map((section) => section.title) } : { _tag: 'NotFound' }
 }
 

@@ -34,6 +34,7 @@ export const LogInServiceLayer = Layer.effect(
     const hooks = yield* AppHooks
     const sessions = yield* AppSessions
     const store = yield* ArtifactStore
+
     return LogInService.of({
       logIn: Effect.fn('LogInService.logIn')(function* ({ as, params }) {
         const url = yield* hooks.appUrl()
@@ -41,12 +42,14 @@ export const LogInServiceLayer = Layer.effect(
         const user = userFromAlias({ as, users: hooks.users })
         yield* sessions.renewAppSession({ user, params })
         yield* store.writeHostDefaults({ host, user, params })
+
         return { url, host, user }
       }),
       logOut: Effect.fn('LogInService.logOut')(function* ({ as }) {
         const url = yield* hooks.appUrl()
         const host = new URL(url).host
         const user = Option.map(as, (alias) => userFromAlias({ as: alias, users: hooks.users }))
+
         return { host, removed: yield* store.removeAuthFiles({ host, user }) }
       }),
     })

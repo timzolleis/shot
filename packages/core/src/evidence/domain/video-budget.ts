@@ -15,8 +15,10 @@ export const videoLimitBytes = (plan: 'free' | 'paid'): number => (plan === 'pai
 
 /** Playwright records at 25 fps. */
 const framesPerSecond = 25
+
 /** Below this many bits per pixel and frame, H.264 screen recordings smear text. */
 const minimumBitsPerPixel = 0.1
+
 /** Headroom for the container and rate-control overshoot. */
 const budgetShare = 0.9
 const widthLadder = [1920, 1440, 1280, 960, 720, 640, 480]
@@ -36,9 +38,11 @@ export const videoEncodingForBudget = (input: {
   if (input.bytes <= input.limitBytes) return Result.succeed({ width: input.width, bitrate: undefined })
   const bitrate = Math.floor((input.limitBytes * budgetShare * 8) / (input.durationMs / 1000))
   const aspect = input.height / input.width
+
   const width = [input.width, ...widthLadder.filter((candidate) => candidate < input.width)].find(
     (candidate) => bitrate / (candidate * candidate * aspect * framesPerSecond) >= minimumBitsPerPixel,
   )
+
   return width === undefined
     ? Result.fail(new VideoTooLargeError({ file: input.file, bytes: input.bytes, limitBytes: input.limitBytes }))
     : Result.succeed({ width, bitrate })

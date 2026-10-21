@@ -31,6 +31,7 @@ export const openUrlSource = ({
 }) =>
   Effect.gen(function* () {
     const contextOptions = yield* contextOptionsFromVariant(variant)
+
     const context = yield* deps.browser.newContext({
       ...contextOptions,
       ...Option.match(options.recordVideoDir, {
@@ -38,6 +39,7 @@ export const openUrlSource = ({
         onSome: (dir) => ({ recordVideo: { dir, size: contextOptions.viewport ?? { width: 1280, height: 900 } } }),
       }),
     })
+
     const hasDeterminism = deps.config.determinism.fixedTime !== undefined || deps.config.determinism.seed !== undefined
     yield* prepareContext({
       context,
@@ -48,6 +50,7 @@ export const openUrlSource = ({
     const page = yield* Effect.promise(() => context.newPage())
     collectPageErrors(page, log)
     const networkQuiet = trackNetwork(page, new URL(source.url).origin)
+
     const response = yield* Effect.tryPromise({
       try: () => page.goto(source.url, { waitUntil: 'load', timeout: renderTimeoutMs }),
       catch: (error) =>
@@ -55,11 +58,15 @@ export const openUrlSource = ({
           ? new SourceTimedOutError({ source, waitedMs: renderTimeoutMs, consoleErrors: [...log.errors] })
           : new SourceRenderFailedError({ source, reason: `could not load the page (${firstLine(error)})` }),
     })
+
     if (response !== null && response.status() >= 400) {
       return yield* new SourceRenderFailedError({ source, reason: `the server answered ${response.status()}` })
     }
+
     yield* Effect.promise(networkQuiet)
     yield* deps.runtime.injectRuntime(page)
+
     if (options.settle) yield* settlePage(page)
+
     return { page, context, source, variant, consoleErrors: log.errors } satisfies ReadyPage
   })

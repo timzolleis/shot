@@ -27,13 +27,17 @@ const settleCapMs = 2_000
 
 const editDistance = (a: string, b: string): number => {
   let previous = Array.from({ length: b.length + 1 }, (_, index) => index)
+
   for (let i = 1; i <= a.length; i++) {
     const current = [i]
+
     for (let j = 1; j <= b.length; j++) {
       current[j] = Math.min(previous[j]! + 1, current[j - 1]! + 1, previous[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1))
     }
+
     previous = current
   }
+
   return previous[b.length]!
 }
 
@@ -51,6 +55,7 @@ export const contextOptionsFromVariant = (variant: Variant): Effect.Effect<Brows
       onNone: () => Effect.succeed(undefined),
       onSome: (requested) => {
         const name = Object.keys(devices).find((candidate) => candidate.toLowerCase() === requested.toLowerCase())
+
         return name === undefined
           ? Effect.fail(
               new UnknownDeviceError({
@@ -61,7 +66,9 @@ export const contextOptionsFromVariant = (variant: Variant): Effect.Effect<Brows
           : Effect.succeed(devices[name])
       },
     })
+
     const viewport = device?.viewport ?? { width: 1280, height: 900 }
+
     return {
       ...(device === undefined ? {} : { userAgent: device.userAgent, isMobile: device.isMobile, hasTouch: device.hasTouch }),
       viewport: {
@@ -82,6 +89,7 @@ const hideCaretAndScrollbars = () => {
       '*,*::before,*::after{caret-color:transparent!important;scrollbar-width:none!important}::-webkit-scrollbar{display:none!important}'
     document.head.append(element)
   }
+
   if (document.head === null) document.addEventListener('DOMContentLoaded', style)
   else style()
 }
@@ -111,6 +119,7 @@ const seededRandom = (seed: number) => {
     let t = state
     t = Math.imul(t ^ (t >>> 15), t | 1)
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
 }
@@ -126,10 +135,14 @@ export const prepareContext = ({
 }) =>
   Effect.promise(async () => {
     await context.addInitScript(hideCaretAndScrollbars)
+
     if (slow) await context.addInitScript(slowClock)
+
     if (Option.isSome(determinism)) {
       const { fixedTime, seed } = determinism.value
+
       if (seed !== undefined) await context.addInitScript(seededRandom, seed)
+
       if (fixedTime !== undefined) await context.clock.setFixedTime(fixedTime)
     }
   })
@@ -137,6 +150,7 @@ export const prepareContext = ({
 /** Errors in the order they happened, each once. */
 export const makeErrorLog = () => {
   const errors: Array<string> = []
+
   return { errors, add: (error: string) => (errors.includes(error) ? undefined : errors.push(error)) }
 }
 
@@ -165,8 +179,10 @@ export const blockWrites = ({
       (url) => url.origin === origin,
       async (route) => {
         const request = route.request()
+
         if (!writeMethods.has(request.method())) return route.fallback()
         log.add(`blocked ${request.method()} ${new URL(request.url()).pathname}`)
+
         return route.abort('blockedbyclient')
       },
     ),
@@ -176,20 +192,26 @@ export const blockWrites = ({
 export const trackNetwork = (page: Page, origin: string) => {
   const inFlight = new Set<unknown>()
   let lastChange = Date.now()
+
   const counts = (request: { url: () => string; resourceType: () => string }) =>
     request.url().startsWith(origin) && !['eventsource', 'websocket'].includes(request.resourceType())
+
   page.on('request', (request) => {
     if (!counts(request)) return
     inFlight.add(request)
     lastChange = Date.now()
   })
+
   const done = (request: unknown) => {
     if (inFlight.delete(request)) lastChange = Date.now()
   }
+
   page.on('requestfinished', done)
   page.on('requestfailed', done)
+
   return async () => {
     const deadline = Date.now() + 10_000
+
     while (Date.now() < deadline && (inFlight.size > 0 || Date.now() - lastChange < 500)) {
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
@@ -203,17 +225,21 @@ export const settlePage = (page: Page) =>
       .evaluate(async (capMs) => {
         await document.fonts.ready
         const deadline = performance.now() + capMs
+
         const running = () =>
           document.getAnimations().filter((animation) => {
             const end = animation.effect?.getComputedTiming().endTime
+
             return animation.playState === 'running' && typeof end === 'number' && Number.isFinite(end)
           })
+
         for (let pending = running(); pending.length > 0 && performance.now() < deadline; pending = running()) {
           await Promise.race([
             Promise.all(pending.map((animation) => animation.finished.catch(() => undefined))),
             new Promise((resolve) => setTimeout(resolve, Math.max(0, deadline - performance.now()))),
           ])
         }
+
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
       }, settleCapMs)
       .catch(() => undefined),
@@ -228,15 +254,19 @@ const originalViewports = new WeakMap<Page, { readonly width: number; readonly h
 export const fitContent = ({ page, expand }: { readonly page: Page; readonly expand: boolean }) =>
   Effect.gen(function* () {
     const original = originalViewports.get(page) ?? page.viewportSize()
+
     if (original === null) return
     originalViewports.set(page, original)
+
     if (!expand) {
       if (page.viewportSize()?.height !== original.height) {
         yield* Effect.promise(() => page.setViewportSize(original))
         yield* settlePage(page)
       }
+
       return
     }
+
     for (let round = 0; round < 3; round++) {
       const hidden = yield* Effect.promise(() =>
         page.evaluate(() =>
@@ -245,11 +275,13 @@ export const fitContent = ({ page, expand }: { readonly page: Page; readonly exp
             ...Array.from(document.querySelectorAll('*')).map((element) => {
               const style = getComputedStyle(element)
               const scrolls = /(auto|scroll|hidden)/.test(style.overflowY) && element !== document.documentElement
+
               return scrolls && element !== document.body ? element.scrollHeight - element.clientHeight : 0
             }),
           ),
         ),
       )
+
       if (hidden <= 1) return
       const current = page.viewportSize() ?? original
       yield* Effect.promise(() => page.setViewportSize({ width: current.width, height: Math.min(12_000, current.height + hidden) }))
@@ -274,19 +306,24 @@ const firstLine = (error: unknown) => (String(error).split('\n')[0] ?? '').repla
 export const runStep = ({ page, step }: { readonly page: Page; readonly step: Step }): Effect.Effect<void, StepFailedError> =>
   Effect.gen(function* () {
     const fail = (reason: string) => new StepFailedError({ step: stepDescription(step), reason })
+
     if (step._tag === 'Key') {
       return yield* Effect.tryPromise({ try: () => page.keyboard.press(step.key), catch: (error) => fail(firstLine(error)) })
     }
+
     if (step._tag === 'Wait') return yield* Effect.sleep(step.ms)
     // Pages keep hidden copies of controls (mobile and desktop layouts, closed popups): the first visible match.
     const locator = page.locator(step.selector).filter({ visible: true }).first()
     yield* Effect.promise(() => locator.waitFor({ state: 'visible', timeout: 2000 }).catch(() => undefined))
     // A selector Playwright cannot parse fails here, as the step's error.
     const counted = (count: () => Promise<number>) => Effect.tryPromise({ try: count, catch: (error) => fail(firstLine(error)) })
+
     if ((yield* counted(() => locator.count())) === 0) {
       const hidden = yield* counted(() => page.locator(step.selector).count())
+
       return yield* fail(`${hidden > 0 ? `${hidden} matching, none visible` : 'no element matches'} (waited 2s)`)
     }
+
     yield* Effect.tryPromise({
       try: () =>
         Match.valueTags(step, {

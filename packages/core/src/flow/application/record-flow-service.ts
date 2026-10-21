@@ -62,14 +62,18 @@ export const RecordFlowServiceLayer = Layer.effect(
       Effect.gen(function* () {
         const looked = flowCandidates({ raw, projectRoot: config.projectRoot })
         const file = looked.find((candidate) => existsSync(candidate) && candidate.endsWith('.ts'))
+
         if (file === undefined) return yield* new FlowNotFoundError({ flow: raw, looked: looked.map((candidate) => path.relative(process.cwd(), candidate)) })
+
         const module = yield* Effect.tryPromise({
           try: () => import(pathToFileURL(file).href) as Promise<{ default?: unknown }>,
           catch: (error) => new FlowInvalidError({ file, reason: messageFromUnknown(error) }),
         })
+
         if (!isFlowDefinition(module.default)) {
           return yield* new FlowInvalidError({ file, reason: 'the default export is not defineFlow(...)' })
         }
+
         return { file, definition: module.default }
       })
 
@@ -80,6 +84,7 @@ export const RecordFlowServiceLayer = Layer.effect(
         const name = path.basename(file).replace(/\.flow\.ts$|\.ts$/, '')
         const params = header.params ?? {}
         const source = yield* providers.resolveSource({ raw: header.start, as: Option.fromNullishOr(header.as), params })
+
         const flow: Flow = {
           name,
           file: path.relative(store.projectRoot, file),
@@ -87,8 +92,10 @@ export const RecordFlowServiceLayer = Layer.effect(
           as: source._tag === 'RouteSource' ? source.user : '',
           params,
         }
+
         const dir = yield* store.makeFlowDir({ label, name })
         const recordingDir = store.absolutePath(path.join(dir, 'recording'))
+
         const variant = {
           mode: header.mode ?? 'light',
           device: Option.fromNullishOr(header.device),
@@ -97,32 +104,39 @@ export const RecordFlowServiceLayer = Layer.effect(
           scale: 1,
           reducedMotion: false,
         } as const
+
         const recorded = yield* Effect.scoped(
           Effect.gen(function* () {
             const startedAt = Date.now()
+
             const ready = yield* providers.openSource({
               source,
               variant,
               options: { settle: true, slowClock: false, recordVideoDir: Option.some(recordingDir) },
             })
+
             const { page, context } = ready
             yield* Effect.promise(() => context.tracing.start({ screenshots: true, snapshots: true }))
             const stills: Array<FlowStill> = []
             let stopped: Option.Option<{ step: string; reason: string }> = Option.none()
+
             const step = async (stepName: string, action: () => unknown) => {
               if (Option.isSome(stopped)) throw new FlowStopped()
               process.stderr.write(`step ${stepName}\n`)
+
               try {
                 await Effect.runPromise(effectFromHook(() => action() as never, (message) => new Error(message)))
               } catch (error) {
                 stopped = Option.some({ step: stepName, reason: messageFromUnknown(error) })
                 throw new FlowStopped()
               }
+
               await Effect.runPromise(settlePage(page))
               const still = path.join(dir, `${String(stills.length + 1).padStart(2, '0')}-${slugFromText(stepName)}.png`)
               await page.screenshot({ path: store.absolutePath(still), animations: 'disabled' })
               stills.push({ step: stepName, file: still })
             }
+
             yield* Effect.promise(async () => {
               try {
                 await Effect.runPromise(effectFromHook(() => body({ page, step }) as never, (message) => new Error(message)))
@@ -139,10 +153,13 @@ export const RecordFlowServiceLayer = Layer.effect(
             // The video file is complete once its context closes.
             yield* Effect.promise(() => context.close())
             const recording = video === null ? undefined : yield* Effect.promise(() => video.path())
+
             return { stills, stopped, trace, recording, viewport, durationMs: Date.now() - startedAt }
           }),
         )
+
         const videoFile = path.join(dir, `${name}.mp4`)
+
         if (recorded.recording !== undefined) {
           const encoded = yield* encoder.encodeVideo({
             recording: recorded.recording,
@@ -152,9 +169,11 @@ export const RecordFlowServiceLayer = Layer.effect(
             height: recorded.viewport.height,
             limitBytes: config.videoLimitBytes,
           })
+
           process.stderr.write(`video: ${sizeText(encoded.bytes)} at ${encoded.width} wide\n`)
           yield* Effect.promise(() => rm(recordingDir, { recursive: true, force: true }))
         }
+
         const flowResult: FlowResult = Option.match(recorded.stopped, {
           onNone: () => ({ _tag: 'CompletedFlow' as const, flow, stills: recorded.stills, video: videoFile, trace: recorded.trace }),
           onSome: ({ step, reason }) => ({
@@ -167,7 +186,9 @@ export const RecordFlowServiceLayer = Layer.effect(
             reason,
           }),
         })
+
         yield* store.writeFlowResult({ label, flowResult })
+
         return flowResult
       }),
     })

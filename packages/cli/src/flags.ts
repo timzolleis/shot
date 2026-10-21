@@ -24,8 +24,10 @@ const stepFlags = new Set(['click', 'fill', 'key', 'hover', 'focus', 'press', 'w
 export const stepsFromArgv = (argv: ReadonlyArray<string>): ReadonlyArray<Step> =>
   argv.flatMap((token, index): ReadonlyArray<Step> => {
     const match = /^--([a-z]+)(?:=(.*))?$/s.exec(token)
+
     if (match === null || !stepFlags.has(match[1]!)) return []
     const value = match[2] ?? argv[index + 1] ?? ''
+
     switch (match[1]) {
       case 'click':
         return [{ _tag: 'Click', selector: value }]
@@ -41,6 +43,7 @@ export const stepsFromArgv = (argv: ReadonlyArray<string>): ReadonlyArray<Step> 
         return [{ _tag: 'Wait', ms: Number(value) }]
       default: {
         const separator = value.lastIndexOf('=')
+
         return [{ _tag: 'Fill', selector: value.slice(0, separator), text: value.slice(separator + 1) }]
       }
     }

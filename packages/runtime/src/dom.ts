@@ -19,6 +19,7 @@ export const unionRect = (rects: ReadonlyArray<Rect>): Rect => {
   const y = Math.min(...rects.map((rect) => rect.y))
   const right = Math.max(...rects.map((rect) => rect.x + rect.width))
   const bottom = Math.max(...rects.map((rect) => rect.y + rect.height))
+
   return { x, y, width: right - x, height: bottom - y }
 }
 
@@ -34,6 +35,7 @@ const cssEscape = (value: string) => (typeof CSS !== 'undefined' ? CSS.escape(va
 /** A selector `--select` accepts: an id, a `data-slot`/`data-testid`, else the tag; `>> nth=i` when not unique. */
 export const selectorFromElement = (element: Element): string => {
   const tag = element.tagName.toLowerCase()
+
   const css =
     element.id !== ''
       ? `#${cssEscape(element.id)}`
@@ -42,8 +44,10 @@ export const selectorFromElement = (element: Element): string => {
         : element.hasAttribute('data-slot')
           ? `[data-slot=${element.getAttribute('data-slot')}]`
           : tag
+
   const matches = Array.from(document.querySelectorAll(css))
   const index = matches.indexOf(element)
+
   return index <= 0 ? css : `${css} >> nth=${index}`
 }
 
@@ -52,8 +56,10 @@ export const isOverlay = (element: Element) => element.closest('[data-shot-overl
 export const isVisible = (element: Element): boolean => {
   if (isOverlay(element)) return false
   const rect = element.getBoundingClientRect()
+
   if (rect.width === 0 || rect.height === 0) return false
   const style = getComputedStyle(element)
+
   return style.visibility !== 'hidden' && style.opacity !== '0'
 }
 
@@ -76,8 +82,11 @@ export const isVisual = (element: Element): boolean => {
   if (['img', 'svg', 'input', 'textarea', 'select', 'video', 'canvas', 'hr'].includes(element.tagName.toLowerCase())) {
     return true
   }
+
   const style = getComputedStyle(element)
+
   if (!transparent(style.backgroundColor) || style.backgroundImage !== 'none' || style.boxShadow !== 'none') return true
+
   return sides(style, 'border', '-width').some(
     (width, index) =>
       width > 0 && !transparent(style.getPropertyValue(`border-${['top', 'right', 'bottom', 'left'][index]}-color`)),
@@ -96,6 +105,7 @@ export const textRuns = (root: Element): ReadonlyArray<TextRun> =>
     const nodes = Array.from(element.childNodes).filter(
       (node) => node.nodeType === Node.TEXT_NODE && (node.textContent ?? '').trim() !== '',
     )
+
     if (nodes.length === 0) return []
     const range = document.createRange()
     range.setStartBefore(nodes[0]!)
@@ -106,6 +116,7 @@ export const textRuns = (root: Element): ReadonlyArray<TextRun> =>
     element.insertBefore(probe, nodes[0]!)
     const baseline = probe.getBoundingClientRect().top + scrollY
     probe.remove()
+
     return rect.width > 0 ? [{ element, rect: pageRect(rect), baseline: round(baseline) }] : []
   })
 
@@ -115,10 +126,14 @@ export const resolvedPx = (element: Element, values: ReadonlyArray<string>): Rea
   probe.style.position = 'absolute'
   probe.style.visibility = 'hidden'
   element.append(probe)
+
   const resolved = values.map((value) => {
     probe.style.height = value
+
     return Math.round(probe.getBoundingClientRect().height * 100) / 100
   })
+
   probe.remove()
+
   return resolved
 }

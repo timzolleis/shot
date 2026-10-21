@@ -9,11 +9,11 @@ import type { RuntimeFinding } from './types.ts'
  * injects it into each page once it is ready, as `window.__shot`.
  */
 
-const checks: Record<string, (root: Element) => ReadonlyArray<RuntimeFinding>> = {
-  overflow: checkOverflow,
-  target: checkTargets,
-  align: checkAlign,
-}
+const checks = new Map([
+  ['overflow', checkOverflow],
+  ['target', checkTargets],
+  ['align', checkAlign],
+])
 
 /** Section titles in document order, with nesting depth. */
 const outline = (): ReadonlyArray<{ title: string; depth: number }> => {
@@ -56,7 +56,7 @@ const markSection = (
 }
 
 const runChecks = (names: ReadonlyArray<string>, root: Element): ReadonlyArray<RuntimeFinding> =>
-  names.flatMap((name) => checks[name]?.(root) ?? [])
+  names.flatMap((name) => checks.get(name)?.(root) ?? [])
 
 const runtime = {
   outline,
@@ -69,4 +69,4 @@ const runtime = {
 
 export type PageRuntime = typeof runtime
 
-;(window as unknown as { __shot: PageRuntime }).__shot = runtime
+window.__shot = runtime

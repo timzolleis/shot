@@ -6,6 +6,7 @@ import {
   type Rect,
   round,
   selectorFromElement,
+  type Sides,
   sides,
   textRuns,
 } from './dom.ts'
@@ -122,9 +123,9 @@ export const measureType = (root: Element): ReadonlyArray<TypeSample> =>
 export interface BoxSample {
   readonly selector: string
   readonly rect: Rect
-  readonly padding: ReadonlyArray<number>
-  readonly border: ReadonlyArray<number>
-  readonly margin: ReadonlyArray<number>
+  readonly padding: Sides
+  readonly border: Sides
+  readonly margin: Sides
 }
 
 export const measureBoxes = (root: Element): ReadonlyArray<BoxSample> =>
@@ -176,7 +177,7 @@ const edgeItems = (root: Element): ReadonlyArray<EdgeItem> => [
 ]
 
 /** Shared edges become guides; edges 1–3px apart between neighbours are near-misses. */
-export const measureEdges = (root: Element): { guides: ReadonlyArray<Guide>; nearMisses: ReadonlyArray<NearMiss> } => {
+export const measureEdges = (root: Element) => {
   const items = edgeItems(root)
   const guides: Array<Guide> = []
 

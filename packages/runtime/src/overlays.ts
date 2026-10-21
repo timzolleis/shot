@@ -11,6 +11,14 @@ import {
 
 export type OverlayKind = 'boxes' | 'gaps' | 'edges' | 'type' | 'grid'
 
+/** What each drawn overlay measured; `grid` measures nothing. */
+export interface OverlayMeasurements {
+  boxes?: ReadonlyArray<BoxSample>
+  gaps?: ReadonlyArray<GapBand>
+  edges?: ReturnType<typeof measureEdges>
+  type?: ReadonlyArray<TypeSample>
+}
+
 const OK = '#2563eb'
 const OFF = '#dc2626'
 const GUIDE = '#0891b2'
@@ -46,9 +54,9 @@ const label = (text: string, x: number, y: number, color: string) => {
 const drawBoxes = (boxes: ReadonlyArray<BoxSample>) => {
   for (const box of boxes) {
     const { x, y, width, height } = box.rect
-    const [mt, mr, mb, ml] = box.margin as [number, number, number, number]
-    const [pt, pr, pb, pl] = box.padding as [number, number, number, number]
-    const [bt, br, bb, bl] = box.border as [number, number, number, number]
+    const [mt, mr, mb, ml] = box.margin
+    const [pt, pr, pb, pl] = box.padding
+    const [bt, br, bb, bl] = box.border
     const margin = 'background:rgba(249,115,22,.22)'
 
     if (mt > 0) draw({ x, y: y - mt, width, height: mt }, margin)
@@ -118,8 +126,8 @@ const drawGrid = (root: Element) => {
 }
 
 /** Draws the overlays on `root` and returns what they measured. Everything is measured before anything is drawn. */
-export const drawOverlays = (kinds: ReadonlyArray<OverlayKind>, root: Element): Record<string, unknown> => {
-  const measurements: Record<string, unknown> = {}
+export const drawOverlays = (kinds: ReadonlyArray<OverlayKind>, root: Element): OverlayMeasurements => {
+  const measurements: OverlayMeasurements = {}
   const boxes = kinds.includes('boxes') ? measureBoxes(root) : []
   const gaps = kinds.includes('gaps') ? measureGaps(root) : []
   const edges = kinds.includes('edges') ? measureEdges(root) : undefined
@@ -129,22 +137,22 @@ export const drawOverlays = (kinds: ReadonlyArray<OverlayKind>, root: Element): 
 
   if (kinds.includes('boxes')) {
     drawBoxes(boxes)
-    measurements['boxes'] = boxes
+    measurements.boxes = boxes
   }
 
   if (kinds.includes('gaps')) {
     drawGaps(gaps)
-    measurements['gaps'] = gaps
+    measurements.gaps = gaps
   }
 
   if (edges !== undefined) {
     drawEdges(edges)
-    measurements['edges'] = edges
+    measurements.edges = edges
   }
 
   if (kinds.includes('type')) {
     drawType(type)
-    measurements['type'] = type
+    measurements.type = type
   }
 
   return measurements

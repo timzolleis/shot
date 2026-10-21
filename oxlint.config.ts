@@ -49,4 +49,17 @@ export default defineConfig({
     "anti-slop-effect/no-service-constructor-imports": "error",
     "anti-slop-effect/prefer-effect-match": "error",
   },
+  overrides: [
+    {
+      // The in-page runtime runs in the browser and has no Effect: its `_tag` results are plain objects.
+      files: ["packages/runtime/**"],
+      rules: {
+        "anti-slop-effect/no-manual-effect-error-tag": "off",
+        "anti-slop-effect/no-manual-tag-comparison": "off",
+        "anti-slop-effect/no-manual-tagged-construction": "off",
+        "anti-slop-effect/no-service-constructor-imports": "off",
+        "anti-slop-effect/prefer-effect-match": "off",
+      },
+    },
+  ],
 });

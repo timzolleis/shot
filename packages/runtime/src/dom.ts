@@ -71,8 +71,14 @@ export const elementsIn = (root: Element): ReadonlyArray<Element> =>
 
 export const px = (value: string) => Number.parseFloat(value) || 0
 
-export const sides = (style: CSSStyleDeclaration, prefix: string, suffix = '') =>
-  ['top', 'right', 'bottom', 'left'].map((side) => px(style.getPropertyValue(`${prefix}-${side}${suffix}`)))
+/** Top, right, bottom, left. */
+export type Sides = readonly [number, number, number, number]
+
+export const sides = (style: CSSStyleDeclaration, prefix: string, suffix = ''): Sides => {
+  const side = (name: string) => px(style.getPropertyValue(`${prefix}-${name}${suffix}`))
+
+  return [side('top'), side('right'), side('bottom'), side('left')]
+}
 
 const transparent = (color: string) =>
   color === 'transparent' || /rgba?\([^)]*,\s*0\)$/.test(color) || /\/\s*0\)$/.test(color)

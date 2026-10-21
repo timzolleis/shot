@@ -15,5 +15,7 @@ export const pageRuntimeEntry = new URL('./page-runtime.ts', import.meta.url).pa
 declare global {
   interface Window {
     __shot: PageRuntime
+    /** Set by the core's slow clock; `--slow` frames call it. */
+    __shotSetSlow?: (rate: number) => void
   }
 }

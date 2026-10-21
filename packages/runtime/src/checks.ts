@@ -37,7 +37,7 @@ const interactive =
   'a[href], button, input:not([type=hidden]), select, textarea, summary, [role=button], [role=checkbox], [role=switch], [role=radio], [role=tab], [role=menuitem], [role=link], [role=option], [role=slider], [tabindex]:not([tabindex="-1"])'
 
 /** The element's box, grown by an absolutely positioned `::after`/`::before` (a hit-area utility). */
-const hitSize = (element: Element): { width: number; height: number } => {
+const hitSize = (element: Element) => {
   const rect = element.getBoundingClientRect()
   let width = rect.width
   let height = rect.height

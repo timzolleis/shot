@@ -55,7 +55,12 @@ export const openUrlSource = ({
       try: () => page.goto(source.url, { waitUntil: 'load', timeout: renderTimeoutMs }),
       catch: (error) =>
         String(error).includes('Timeout')
-          ? new SourceTimedOutError({ source, waitedMs: renderTimeoutMs, consoleErrors: [...log.errors] })
+          ? new SourceTimedOutError({
+              source,
+              waitedMs: renderTimeoutMs,
+              waitedFor: 'load',
+              consoleErrors: [...log.errors],
+            })
           : new SourceRenderFailedError({ source, reason: `could not load the page (${firstLine(error)})` }),
     })
 

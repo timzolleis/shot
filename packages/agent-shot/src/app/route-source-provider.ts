@@ -81,7 +81,7 @@ export const resolveRouteSource = ({
  *      ├─ 4xx/5xx, a failing waitUntilReady ──▶ SourceRenderFailedError
  *      ├─ landed on the login page ──▶ renew the session once ──▶ again: SourceRedirectedError (A5)
  *      ├─ landed elsewhere ──▶ SourceRedirectedError (a 404 page, a permission redirect)
- *      └─ not ready in 20s ──▶ SourceTimedOutError
+ *      └─ not ready in 20s ──▶ SourceTimedOutError, naming what it waited for
  */
 export const openRouteSource = ({
   deps,
@@ -160,7 +160,12 @@ export const openRouteSource = ({
       if (Result.isFailure(ready)) return yield* new SourceRenderFailedError({ source, reason: ready.failure.message })
 
       if (Option.isNone(ready.success)) {
-        return yield* new SourceTimedOutError({ source, waitedMs: renderTimeoutMs, consoleErrors: [...log.errors] })
+        return yield* new SourceTimedOutError({
+          source,
+          waitedMs: renderTimeoutMs,
+          waitedFor: deps.hooks.waitsFor,
+          consoleErrors: [...log.errors],
+        })
       }
 
       if (landed.pathname !== target.pathname) {

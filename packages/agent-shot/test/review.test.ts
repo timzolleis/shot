@@ -84,6 +84,37 @@ const peopleKey = sheetKey(people.phone)
 const filtersKey = sheetKey(filters)
 
 describe('reviewSheetsFromSession (F23–F27)', () => {
+  it('variants served as ?variant=<name> line up on one sheet, titled without the query (F27)', () => {
+    const at = (variant: string) =>
+      Result.getOrThrow(
+        planCapturesFromFlags({
+          source: RouteSource.make({ path: `/team?variant=${variant}`, user: 'admin@example.org', params: {} }),
+          flags: { ...defaultShootFlags, sizes: [sizeAliases.phone], sections: ['People'] },
+        }),
+      )[0]!
+
+    const variants: Session = {
+      name: 's',
+      dir: '.shots/s',
+      labels: ['quiet', 'dense'].map((label) => ({
+        label,
+        captures: [captured({ label, capture: at(label) })],
+        flows: [],
+      })),
+    }
+
+    const review = Result.getOrThrow(
+      reviewSheetsFromSession({ session: variants, request: request({ base: Option.none() }) }),
+    )
+
+    expect(review.sheets).toHaveLength(1)
+    expect(review.sheets[0]!.title).toBe('/team as admin@example.org › People (light)')
+    expect(review.sheets[0]!.sizes[0]!.cells.map((cell) => `${cell.label}: ${cell.cell._tag}`)).toEqual([
+      'quiet: ShotCell',
+      'dense: ShotCell',
+    ])
+  })
+
   it('labels in the order named, base first and without a vote; descriptions under their label (F23, F24, F26)', () => {
     const review = Result.getOrThrow(
       reviewSheetsFromSession({

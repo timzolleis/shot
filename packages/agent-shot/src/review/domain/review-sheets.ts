@@ -1,8 +1,16 @@
-import { Option, Predicate, Result } from 'effect'
+import { Match, Option, Predicate, Result } from 'effect'
 
 import { labelDisplayName, type Session } from '../../artifact/session.ts'
-import { type Size, sizeDescription } from '../../capture/domain/size.ts'
-import { type EvidenceCell, evidenceReportFromSession, MissingCell } from '../../evidence/domain/evidence-report.ts'
+import type { Capture, Source } from '../../capture/domain/capture.ts'
+import { partDescription, sheetKey, sourceDescription } from '../../capture/domain/capture-key.ts'
+import { type Size, sizeDescription, sizeOrder } from '../../capture/domain/size.ts'
+import {
+  type EvidenceCell,
+  type EvidenceSheet,
+  evidenceReportFromSession,
+  MissingCell,
+  type SheetRow,
+} from '../../evidence/domain/evidence-report.ts'
 import { LabelNotFoundError, NothingToReviewError, SheetNotFoundError, SizeNotShotError } from './review-error.ts'
 import type { ReviewDraft, ReviewLabel, ReviewSheet } from './review.ts'
 
@@ -35,6 +43,74 @@ const sessionLabelFromName = ({ session, name }: { readonly session: Session; re
   ).pipe(Option.map((entry) => entry.label))
 
 const isShot = (cell: EvidenceCell) => Predicate.isTagged(cell, 'ShotCell')
+
+const withoutQuery = (source: Source): Source =>
+  Match.valueTags(source, {
+    RouteSource: (route) => ({ ...route, path: route.path.split('?')[0]! }),
+    UrlSource: (url) => ({ ...url, url: url.url.split('?')[0]! }),
+  })
+
+/** A capture with the query left out of its source: `/team?variant=quiet` and `/team?variant=dense` line up. */
+const alignedCapture = (capture: Capture): Capture => ({ ...capture, source: withoutQuery(capture.source) })
+
+const alignedTitle = (capture: Capture) =>
+  `${sourceDescription(capture.source)} › ${Option.getOrElse(capture.name, () => partDescription(capture.part))} (${capture.variant.mode})`
+
+/**
+ * The report's sheets for these labels, with sheets that differ only in their URL's query merged into one, so variants
+ * served as `?variant=<name>` sit side by side (F27). Sheets stay apart when a label has a still in more than one.
+ */
+const alignedSheets = ({
+  session,
+  labels,
+}: {
+  readonly session: Session
+  readonly labels: ReadonlyArray<string>
+}): ReadonlyArray<EvidenceSheet> => {
+  const captures = new Map(
+    session.labels.flatMap((entry) =>
+      entry.captures.map((result) => [sheetKey(result.capture), result.capture] as const),
+    ),
+  )
+
+  const sheets = evidenceReportFromSession(session).sheets.map((sheet) => ({
+    ...sheet,
+    rows: sheet.rows.filter((row) => labels.includes(row.label)),
+  }))
+
+  const groups = new Map<string, { capture: Capture; members: Array<EvidenceSheet> }>()
+
+  for (const sheet of sheets) {
+    const capture = alignedCapture(captures.get(sheet.key)!)
+    const key = sheetKey(capture)
+    const group = groups.get(key)
+    const taken = new Set(group?.members.flatMap((member) => member.rows.map((row) => row.label)) ?? [])
+
+    if (group !== undefined && sheet.rows.every((row) => !taken.has(row.label))) group.members.push(sheet)
+    else groups.set(group === undefined ? key : sheet.key, { capture, members: [sheet] })
+  }
+
+  return [...groups.entries()].map(([key, { capture, members }]): EvidenceSheet => {
+    if (members.length === 1) return members[0]!
+
+    const sizes = [
+      ...new Map(members.flatMap((member) => member.sizes).map((size) => [sizeDescription(size), size])).values(),
+    ].toSorted(sizeOrder)
+
+    const rows = members.flatMap((member) =>
+      member.rows.map((row): SheetRow => ({
+        label: row.label,
+        cells: sizes.map((size) => {
+          const index = member.sizes.findIndex((own) => sizeDescription(own) === sizeDescription(size))
+
+          return index === -1 ? MissingCell.make({}) : row.cells[index]!
+        }),
+      })),
+    )
+
+    return { key, title: alignedTitle(capture), file: members[0]!.file, sizes, rows }
+  })
+}
 
 /**
  * The labels the agent named, base first, and the sheets where a label that takes a vote has a still; sizes narrowest
@@ -73,7 +149,7 @@ export const reviewSheetsFromSession = ({
 
   const wanted = new Set(request.sizes.map(sizeDescription))
 
-  const all = evidenceReportFromSession(session).sheets.flatMap((sheet): ReadonlyArray<ReviewSheet> => {
+  const all = alignedSheets({ session, labels: order }).flatMap((sheet): ReadonlyArray<ReviewSheet> => {
     const sizes = sheet.sizes.flatMap((size, index) => {
       if (wanted.size > 0 && !wanted.has(sizeDescription(size))) return []
 

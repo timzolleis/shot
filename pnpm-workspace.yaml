@@ -4,3 +4,4 @@ packages:
   - test/*
 allowBuilds:
   esbuild: true
+  ffmpeg-static: true

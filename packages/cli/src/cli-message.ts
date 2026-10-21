@@ -6,6 +6,7 @@ import {
   type ConflictingOutputsError,
   type FlowInvalidError,
   type FlowNotFoundError,
+  type GhCommandFailedError,
   type GhMissingError,
   type GhTooOldError,
   type LoupeTooLargeError,
@@ -53,6 +54,7 @@ export type ShotError =
   | VideoTooLargeError
   | GhMissingError
   | GhTooOldError
+  | GhCommandFailedError
   | NoPushAccessError
   | NoPullRequestError
   | NoEvidenceError
@@ -87,6 +89,7 @@ export const cliMessageFromShotError = (error: ShotError): string =>
     VideoTooLargeError: ({ file, bytes, limitBytes }) =>
       `video ${file} is ${megabytes(bytes)} MB, over the ${megabytes(limitBytes)} MB limit at every resolution; shorten the flow`,
     GhMissingError: ({ reason }) => `gh: ${reason}`,
+    GhCommandFailedError: ({ command, stderr }) => `${command} failed: ${stderr.split('\n')[0]}`,
     GhTooOldError: ({ version }) => `gh ${version} cannot attach files; update to 2.99 or later`,
     NoPushAccessError: ({ repository, permission }) =>
       `no push access to ${repository} (${permission === '' ? 'none' : permission.toLowerCase()}); attaching files needs it`,

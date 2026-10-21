@@ -1,5 +1,6 @@
 import { Context, Effect, Layer, Option } from 'effect'
 import { existsSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -33,6 +34,9 @@ export class RecordFlowService extends Context.Service<
     >
   }
 >()('shot/RecordFlowService') {}
+
+const sizeText = (bytes: number) =>
+  bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 
 /** Thrown inside the flow body to stop it after a failed step. */
 class FlowStopped extends Error {}
@@ -148,7 +152,8 @@ export const RecordFlowServiceLayer = Layer.effect(
             height: recorded.viewport.height,
             limitBytes: config.videoLimitBytes,
           })
-          process.stderr.write(`video: ${(encoded.bytes / 1024 / 1024).toFixed(1)} MB at ${encoded.width} wide\n`)
+          process.stderr.write(`video: ${sizeText(encoded.bytes)} at ${encoded.width} wide\n`)
+          yield* Effect.promise(() => rm(recordingDir, { recursive: true, force: true }))
         }
         const flowResult: FlowResult = Option.match(recorded.stopped, {
           onNone: () => ({ _tag: 'CompletedFlow' as const, flow, stills: recorded.stills, video: videoFile, trace: recorded.trace }),

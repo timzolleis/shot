@@ -21,5 +21,6 @@ export interface ShotPlugin<R = never> {
   readonly publishers?: ReadonlyArray<EvidencePublisher<R>>
   /** Absolute paths of in-page modules bundled into the page runtime (`RuntimeExtension` exports). */
   readonly runtimeModules?: ReadonlyArray<string>
-  readonly layer: Layer.Layer<R, never, ShotPlatform>
+  /** Provides what the checks and publishers need beyond the platform. */
+  readonly layer: Layer.Layer<Exclude<R, ShotPlatform>, never, ShotPlatform>
 }

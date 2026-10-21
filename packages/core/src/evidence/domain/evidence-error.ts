@@ -11,6 +11,12 @@ export class GhTooOldError extends Data.TaggedError('GhTooOldError')<{ readonly 
 /** `gh` is not installed or not logged in. */
 export class GhMissingError extends Data.TaggedError('GhMissingError')<{ readonly reason: string }> {}
 
+/** A gh command failed for a reason shot does not model (network, an unsupported file). */
+export class GhCommandFailedError extends Data.TaggedError('GhCommandFailedError')<{
+  readonly command: string
+  readonly stderr: string
+}> {}
+
 export class NoPushAccessError extends Data.TaggedError('NoPushAccessError')<{
   readonly repository: string
   readonly permission: string

@@ -9,5 +9,6 @@
   "dependencies": {
     "effect": "4.0.5",
     "@shot/core": "workspace:*"
-  }
+  },
+  "devDependencies": {}
 }

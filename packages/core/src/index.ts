@@ -8,6 +8,8 @@ export type { ShotPlatform, ShotPlugin } from './plugin/shot-plugin.ts'
 export type { CaptureCheck } from './plugin/capture-check.ts'
 export type { EvidencePublisher, PublishEvidenceError, PublishedEvidence } from './plugin/evidence-publisher.ts'
 export { shotLayer } from './shot-layer.ts'
+export { runProcess } from './infrastructure/run-process.ts'
+export type { ProcessOutput } from './infrastructure/run-process.ts'
 
 export * from './capture/domain/capture.ts'
 export * from './capture/domain/capture-error.ts'

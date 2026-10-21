@@ -12,7 +12,10 @@ export interface SheetColumn {
   readonly still: Option.Option<string>
 }
 
-/** One capture key across labels (C11). `file` is the image to show: the still, or the composed sheet. */
+/**
+ * One capture key across labels (C11). `file` is the image to show: the still when one label has it, else the sheet
+ * composed of every label's still. A label whose capture failed keeps its column, without a still.
+ */
 export interface EvidenceSheet {
   readonly key: string
   readonly title: string
@@ -59,7 +62,7 @@ export const evidenceReportFromSession = (session: Session): EvidenceReport => {
       ),
     ),
   ]
-  const sheets = keys.map((key): EvidenceSheet => {
+  const sheets = keys.flatMap((key): ReadonlyArray<EvidenceSheet> => {
     const results = session.labels.flatMap((entry) => entry.captures.filter((result) => result.key === key))
     const capture = results[0]!.capture
     const columns = session.labels
@@ -73,13 +76,16 @@ export const evidenceReportFromSession = (session: Session): EvidenceReport => {
           }
         },
       )
-    const single = columns.length === 1 ? columns[0]!.still : Option.none<string>()
-    return {
-      key,
-      title: `${sourceDescription(capture.source)} › ${Option.getOrElse(capture.name, () => partDescription(capture.part))} (${capture.variant.mode})`,
-      file: Option.getOrElse(single, () => sheetFileFromKey({ dir: session.dir, key })),
-      columns,
-    }
+    const stills = columns.flatMap((column) => Option.toArray(column.still))
+    if (stills.length === 0) return []
+    return [
+      {
+        key,
+        title: `${sourceDescription(capture.source)} › ${Option.getOrElse(capture.name, () => partDescription(capture.part))} (${capture.variant.mode})`,
+        file: stills.length === 1 ? stills[0]! : sheetFileFromKey({ dir: session.dir, key }),
+        columns,
+      },
+    ]
   })
   const flows = session.labels.flatMap((entry) =>
     entry.flows.map(
@@ -131,7 +137,7 @@ export const evidenceReportFromSession = (session: Session): EvidenceReport => {
     flows,
     findings,
     summary: {
-      captures: session.labels.reduce((count, entry) => count + entry.captures.length, 0),
+      captures: keys.length,
       flows: flows.length,
       errors: all.filter(({ finding }) => finding.severity === 'error').length,
       warnings: all.filter(({ finding }) => finding.severity === 'warn').length,
@@ -149,7 +155,9 @@ export const evidenceMarkdownFromReport = (report: EvidenceReport): string => {
     '',
   )
   for (const sheet of report.sheets) {
-    const header = sheet.columns.map((column) => labelDisplayName(column.label)).join(' | ')
+    const header = sheet.columns
+      .map((column) => `${labelDisplayName(column.label)}${Option.isNone(column.still) ? ' (failed)' : ''}`)
+      .join(' | ')
     lines.push(`**${sheet.title}** · ${header}`, '', `![${sheet.key}](${sheet.file})`, '')
   }
   for (const flow of report.flows) {

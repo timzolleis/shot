@@ -2,7 +2,13 @@ import { Effect, FileSystem, Layer, Option, Schema } from 'effect'
 import path from 'node:path'
 
 import { ArtifactStore, type HostDefaults } from '../artifact/artifact-store.ts'
-import { captureFileFromKey, labelDirFromSession, type SessionLabel, sessionNameFromEnv } from '../artifact/session.ts'
+import {
+  captureFileFromKey,
+  labelDirFromSession,
+  labelDisplayName,
+  type SessionLabel,
+  sessionNameFromEnv,
+} from '../artifact/session.ts'
 import { CaptureResult } from '../capture/domain/capture-result.ts'
 import { evidenceMarkdownFromReport } from '../evidence/domain/evidence-report.ts'
 import { FlowResult } from '../flow/domain/flow.ts'
@@ -117,7 +123,9 @@ export const FileArtifactStoreLayer = Layer.effect(
           const labelled = yield* Effect.forEach(candidates, (label) =>
             Effect.gen(function* () {
               const dir = manifestDir(label)
-              if (!(yield* fs.exists(dir))) return Option.none<{ label: string; createdAt: number }>()
+              // Files next to the label directories are not labels.
+              const isLabel = yield* fs.exists(dir).pipe(Effect.orElseSucceed(() => false))
+              if (!isLabel) return Option.none<{ label: string; createdAt: number }>()
               const stat = yield* fs.stat(dir)
               const createdAt = Option.getOrElse(
                 Option.orElse(stat.birthtime, () => stat.mtime),
@@ -136,11 +144,12 @@ export const FileArtifactStoreLayer = Layer.effect(
       writeReport: (report) =>
         Effect.gen(function* () {
           for (const sheet of report.sheets) {
-            if (sheet.columns.length < 2) continue
+            const stills = sheet.columns.flatMap((column) =>
+              Option.toArray(Option.map(column.still, (file) => ({ file, label: labelDisplayName(column.label) }))),
+            )
+            if (stills.length < 2) continue
             const cells = yield* Effect.forEach(
-              sheet.columns.flatMap((column) =>
-                Option.toArray(Option.map(column.still, (file) => ({ file, label: column.label || 'shot' }))),
-              ),
+              stills,
               ({ file, label }) => fs.readFile(absolutePath(file)).pipe(Effect.map((png) => ({ png, label }))),
             ).pipe(Effect.orDie)
             const png = yield* sheets.composeSheet({ cells, title: sheet.title, columns: cells.length })

@@ -7,7 +7,7 @@ import type { Server } from 'node:http'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
-import { defaultShootFlags, ShootTargetService, shotLayer } from '../src/index.ts'
+import { defaultShootFlags, RecordFlowService, ShootTargetService, shotLayer } from '../src/index.ts'
 
 /** Adapter cases against the fixture app: a real browser, real files under test/fixture-app/.shots/. */
 
@@ -15,7 +15,7 @@ const fixtureDir = path.resolve(import.meta.dirname, '../../../test/fixture-app'
 const bin = path.resolve(import.meta.dirname, '../../cli/src/bin.ts')
 let server: Server
 let appUrl: string
-let runtime: ManagedRuntime.ManagedRuntime<ShootTargetService, unknown>
+let runtime: ManagedRuntime.ManagedRuntime<ShootTargetService | RecordFlowService, unknown>
 
 const logins = async () => Number(await (await fetch(`${appUrl}/__logins`)).text())
 
@@ -25,8 +25,10 @@ beforeAll(async () => {
   appUrl = started.url
   process.env['FIXTURE_URL'] = appUrl
   process.env['SHOT_SESSION'] = 'runner-test'
-  rmSync(path.join(fixtureDir, '.shots'), { recursive: true, force: true })
-  runtime = ManagedRuntime.make(shotLayer(fixtureDir) as Layer.Layer<ShootTargetService, unknown>)
+  for (const dir of ['runner-test', 'runner-test-parallel', 'auth']) {
+    rmSync(path.join(fixtureDir, '.shots', dir), { recursive: true, force: true })
+  }
+  runtime = ManagedRuntime.make(shotLayer(fixtureDir) as Layer.Layer<ShootTargetService | RecordFlowService, unknown>)
 })
 
 afterAll(async () => {
@@ -85,5 +87,24 @@ describe('CaptureRunner against the fixture app', () => {
       expect.stringMatching(/route-app-persons--viewport-admin-light-[0-9a-f]{6}\.png$/),
       expect.stringMatching(/route-app-persons--viewport-admin-light-[0-9a-f]{6}\.png$/),
     ])
+  })
+})
+
+describe('RecordFlowService against the fixture app', () => {
+  const record = (flow: string) =>
+    runtime.runPromise(Effect.flatMap(RecordFlowService, (service) => service.recordFlow({ flow, label: '' })))
+
+  it('3 steps pass → CompletedFlow, 3 stills, 1 video (7)', async () => {
+    const result = await record('invite-parent')
+    expect(result._tag).toBe('CompletedFlow')
+    expect(result.stills.map((still) => still.step)).toEqual(['open invite', 'fill email', 'submit'])
+    expect(result.video).toMatch(/flows\/invite-parent\/invite-parent\.mp4$/)
+  })
+
+  it('a failing step stops the flow: the stills up to it, the video so far, the error (8)', async () => {
+    const result = await record('broken-submit')
+    expect(result._tag).toBe('StoppedFlow')
+    expect(result.stills).toHaveLength(2)
+    expect(result._tag === 'StoppedFlow' && result.failedStep).toBe('submit')
   })
 })

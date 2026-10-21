@@ -92,9 +92,15 @@ importers:
 
   test/fixture-app:
     dependencies:
+      '@shot/axe':
+        specifier: workspace:*
+        version: link:../../plugins/axe
       '@shot/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@shot/github':
+        specifier: workspace:*
+        version: link:../../plugins/github
 
 packages:
 

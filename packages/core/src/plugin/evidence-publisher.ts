@@ -2,6 +2,7 @@ import type { Effect } from 'effect'
 
 import type { EvidenceReport } from '../evidence/domain/evidence-report.ts'
 import type {
+  GhCommandFailedError,
   GhMissingError,
   GhTooOldError,
   NoPullRequestError,
@@ -14,7 +15,12 @@ export interface PublishedEvidence {
   readonly attachments: number
 }
 
-export type PublishEvidenceError = GhMissingError | GhTooOldError | NoPushAccessError | NoPullRequestError
+export type PublishEvidenceError =
+  | GhMissingError
+  | GhTooOldError
+  | GhCommandFailedError
+  | NoPushAccessError
+  | NoPullRequestError
 
 export interface EvidencePublisher<R = never> {
   readonly publisher: string

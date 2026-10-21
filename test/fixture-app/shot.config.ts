@@ -1,4 +1,6 @@
+import { axe } from '@shot/axe'
 import { defineConfig } from '@shot/core'
+import { github } from '@shot/github'
 
 /** The fixture app's config: what a project writes, without Effect. */
 export default defineConfig({
@@ -15,4 +17,5 @@ export default defineConfig({
       if ((await refused.count()) > 0) throw new Error(await refused.innerText())
     },
   },
+  plugins: [axe(), github()],
 })

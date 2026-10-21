@@ -1,6 +1,25 @@
 import { Option, Result } from 'effect'
 
-import type { Capture, HoldingStep, Mode, Output, Overlay, Part, Plan, Source, Step, Variant } from './capture.ts'
+import {
+  AriaTree,
+  type Capture,
+  Frames,
+  type HoldingStep,
+  Measure,
+  type Mode,
+  type Output,
+  type Overlay,
+  type Part,
+  type Plan,
+  Section,
+  Selected,
+  type Source,
+  Step,
+  Still,
+  type Variant,
+  Viewport,
+  WholePage,
+} from './capture.ts'
 import { ConflictingOutputsError } from './capture-error.ts'
 
 /** What the flags of `shot <target>` say about the plan. */
@@ -55,12 +74,12 @@ export const isPlanInFlags = (flags: ShootFlags): boolean =>
   flags.aria
 
 /** `Sizes`, or `Sizes >> nth=1` for a title that appears more than once. */
-export const sectionFromTitle = (text: string): Extract<Part, { _tag: 'Section' }> => {
+export const sectionFromTitle = (text: string): Section => {
   const match = /^(.*?)\s*>>\s*nth=(\d+)$/.exec(text)
 
   return match === null
-    ? { _tag: 'Section', title: text, nth: Option.none() }
-    : { _tag: 'Section', title: match[1] ?? '', nth: Option.some(Number(match[2])) }
+    ? Section.make({ title: text, nth: Option.none() })
+    : Section.make({ title: match[1] ?? '', nth: Option.some(Number(match[2])) })
 }
 
 export const variantsFromFlags = (flags: ShootFlags): ReadonlyArray<Variant> =>
@@ -89,13 +108,13 @@ const outputFromFlags = (flags: ShootFlags): Result.Result<Output, ConflictingOu
     return Result.fail(new ConflictingOutputsError({ outputs: [...picked, ...stillOnly] }))
   }
 
-  if (Option.isSome(flags.frames)) return Result.succeed({ _tag: 'Frames', ...flags.frames.value })
+  if (Option.isSome(flags.frames)) return Result.succeed(Frames.make(flags.frames.value))
 
-  if (Option.isSome(flags.measure)) return Result.succeed({ _tag: 'Measure', ...flags.measure.value })
+  if (Option.isSome(flags.measure)) return Result.succeed(Measure.make(flags.measure.value))
 
-  if (flags.aria) return Result.succeed({ _tag: 'AriaTree' })
+  if (flags.aria) return Result.succeed(AriaTree.make({}))
 
-  return Result.succeed({ _tag: 'Still', overlays: flags.overlays, loupe: flags.loupe })
+  return Result.succeed(Still.make({ overlays: flags.overlays, loupe: flags.loupe }))
 }
 
 const partsFromFlags = (flags: ShootFlags): ReadonlyArray<Part> => {
@@ -103,17 +122,16 @@ const partsFromFlags = (flags: ShootFlags): ReadonlyArray<Part> => {
     const scopes = flags.sections.length > 0 ? flags.sections.map((title) => Option.some(title)) : [Option.none()]
 
     return flags.selects.flatMap((selector) =>
-      scopes.map((within): Part => ({ _tag: 'Selected', selector, within })),
+      scopes.map((within): Part => Selected.make({ selector, within })),
     )
   }
 
   if (flags.sections.length > 0) return flags.sections.map(sectionFromTitle)
 
-  return [flags.viewport ? { _tag: 'Viewport' } : { _tag: 'WholePage' }]
+  return [flags.viewport ? Viewport.make({}) : WholePage.make({})]
 }
 
-const isHoldingStep = (step: Step): step is HoldingStep =>
-  step._tag === 'Hover' || step._tag === 'Focus' || step._tag === 'Press'
+const isHoldingStep: (step: Step) => step is HoldingStep = Step.isAnyOf(['Hover', 'Focus', 'Press'])
 
 /** Hover, focus and press hold the state the still shows: they run after the other steps, in their order. */
 export const sceneFromSteps = (steps: ReadonlyArray<Step>): ReadonlyArray<Step> => [
@@ -170,12 +188,12 @@ export const planDefaultCaptures = ({
     scene: [],
     parts:
       sections.length === 0
-        ? [{ _tag: 'WholePage' }]
+        ? [WholePage.make({})]
         : sections.map((title, index): Part => {
             const repeats = sections.filter((other) => other === title).length
             const nth = sections.slice(0, index).filter((other) => other === title).length
 
-            return { _tag: 'Section', title, nth: repeats > 1 ? Option.some(nth) : Option.none() }
+            return Section.make({ title, nth: repeats > 1 ? Option.some(nth) : Option.none() })
           }),
-    output: { _tag: 'Still', overlays: [], loupe: Option.none() },
+    output: Still.make({ overlays: [], loupe: Option.none() }),
   })

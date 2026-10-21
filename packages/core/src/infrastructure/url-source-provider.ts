@@ -7,7 +7,7 @@ import type { RouteSourceDeps } from '../app/route-source-provider.ts'
 import {
   collectPageErrors,
   contextOptionsFromVariant,
-  makeErrorLog,
+  createErrorLog,
   prepareContext,
   type ReadyPage,
   renderTimeoutMs,
@@ -15,7 +15,7 @@ import {
   trackNetwork,
 } from './page-lifecycle.ts'
 
-const firstLine = (error: unknown) => (String(error).split('\n')[0] ?? '').replace(/^\w+: /, '')
+const firstLine = (cause: unknown) => (String(cause).split('\n')[0] ?? '').replace(/^\w+: /, '')
 
 /** A URL: load, network quiet, settled. Writes go through: it is not the project's dev data. */
 export const openUrlSource = ({
@@ -46,7 +46,7 @@ export const openUrlSource = ({
       slow: options.slowClock,
       determinism: hasDeterminism ? Option.some(deps.config.determinism) : Option.none(),
     })
-    const log = makeErrorLog()
+    const log = createErrorLog()
     const page = yield* Effect.promise(() => context.newPage())
     collectPageErrors(page, log)
     const networkQuiet = trackNetwork(page, new URL(source.url).origin)

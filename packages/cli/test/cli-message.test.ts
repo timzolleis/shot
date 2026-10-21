@@ -4,7 +4,7 @@ import { Option } from 'effect'
 
 import { cliMessageFromShotError, type ShotError } from '../src/cli-message.ts'
 
-const source: core.Source = { _tag: 'RouteSource', path: '/app/persons', user: 'admin@example.org', params: {} }
+const source = core.RouteSource.make({ path: '/app/persons', user: 'admin@example.org', params: {} })
 
 /** One of each tag; the compiler keeps the mapper exhaustive, this keeps every line one line. */
 const errors: ReadonlyArray<ShotError> = [

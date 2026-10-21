@@ -1,5 +1,5 @@
 import { Effect, Match, Option } from 'effect'
-import { type BrowserContext, type BrowserContextOptions, devices, type Page } from 'playwright'
+import { type BrowserContext, type BrowserContextOptions, devices, type Page, type Request } from 'playwright'
 
 import type { Source, Step, Variant } from '../capture/domain/capture.ts'
 import { StepFailedError, UnknownDeviceError } from '../capture/domain/capture-error.ts'
@@ -69,8 +69,7 @@ export const contextOptionsFromVariant = (variant: Variant): Effect.Effect<Brows
 
     const viewport = device?.viewport ?? { width: 1280, height: 900 }
 
-    return {
-      ...(device === undefined ? {} : { userAgent: device.userAgent, isMobile: device.isMobile, hasTouch: device.hasTouch }),
+    const options: BrowserContextOptions = {
       viewport: {
         width: Option.getOrElse(variant.width, () => viewport.width),
         height: Option.getOrElse(variant.height, () => viewport.height),
@@ -80,6 +79,10 @@ export const contextOptionsFromVariant = (variant: Variant): Effect.Effect<Brows
       colorScheme: variant.mode,
       ignoreHTTPSErrors: true,
     }
+
+    if (device === undefined) return options
+
+    return { ...options, userAgent: device.userAgent, isMobile: device.isMobile, hasTouch: device.hasTouch }
   })
 
 const hideCaretAndScrollbars = () => {
@@ -104,7 +107,7 @@ const slowClock = () => {
   performance.now = now
   const raf = window.requestAnimationFrame.bind(window)
   window.requestAnimationFrame = (callback) => raf(() => callback(now()))
-  ;(window as unknown as { __shotSetSlow: (next: number) => void }).__shotSetSlow = (next) => {
+  window.__shotSetSlow = (next) => {
     baseVirtual = now()
     baseReal = real()
     rate = next
@@ -148,14 +151,14 @@ export const prepareContext = ({
   })
 
 /** Errors in the order they happened, each once. */
-export const makeErrorLog = () => {
+export const createErrorLog = () => {
   const errors: Array<string> = []
 
   return { errors, add: (error: string) => (errors.includes(error) ? undefined : errors.push(error)) }
 }
 
 /** Console errors and page errors into `log`; the browser's echo of a blocked write is already reported. */
-export const collectPageErrors = (page: Page, log: ReturnType<typeof makeErrorLog>) => {
+export const collectPageErrors = (page: Page, log: ReturnType<typeof createErrorLog>) => {
   page.on('console', (message) => {
     if (message.type() === 'error' && !message.text().includes('ERR_BLOCKED_BY_CLIENT')) log.add(message.text())
   })
@@ -172,7 +175,7 @@ export const blockWrites = ({
 }: {
   readonly context: BrowserContext
   readonly origin: string
-  readonly log: ReturnType<typeof makeErrorLog>
+  readonly log: ReturnType<typeof createErrorLog>
 }) =>
   Effect.promise(() =>
     context.route(
@@ -190,7 +193,7 @@ export const blockWrites = ({
 
 /** Same-origin requests in flight, without long-lived streams; `waitForQuiet` resolves after 500ms with none (cap 10s). */
 export const trackNetwork = (page: Page, origin: string) => {
-  const inFlight = new Set<unknown>()
+  const inFlight = new Set<Request>()
   let lastChange = Date.now()
 
   const counts = (request: { url: () => string; resourceType: () => string }) =>
@@ -202,7 +205,7 @@ export const trackNetwork = (page: Page, origin: string) => {
     lastChange = Date.now()
   })
 
-  const done = (request: unknown) => {
+  const done = (request: Request) => {
     if (inFlight.delete(request)) lastChange = Date.now()
   }
 
@@ -230,7 +233,7 @@ export const settlePage = (page: Page) =>
           document.getAnimations().filter((animation) => {
             const end = animation.effect?.getComputedTiming().endTime
 
-            return animation.playState === 'running' && typeof end === 'number' && Number.isFinite(end)
+            return animation.playState === 'running' && Number.isFinite(end)
           })
 
         for (let pending = running(); pending.length > 0 && performance.now() < deadline; pending = running()) {
@@ -300,28 +303,28 @@ export const stepDescription = (step: Step): string =>
     Wait: ({ ms }) => `--wait ${ms}`,
   })
 
-const firstLine = (error: unknown) => (String(error).split('\n')[0] ?? '').replace(/^[\w.]+: /, '')
+const firstLine = (cause: unknown) => (String(cause).split('\n')[0] ?? '').replace(/^[\w.]+: /, '')
 
-/** Runs one step on the first visible match; fails with one line naming the step. */
-export const runStep = ({ page, step }: { readonly page: Page; readonly step: Step }): Effect.Effect<void, StepFailedError> =>
+const stepFailed = (step: Step, cause: unknown) => new StepFailedError({ step: stepDescription(step), reason: firstLine(cause) })
+
+type LocatorStep = Exclude<Step, { readonly _tag: 'Key' | 'Wait' }>
+
+/** Acts on the step's first visible match. */
+const runLocatorStep = ({ page, step }: { readonly page: Page; readonly step: LocatorStep }): Effect.Effect<void, StepFailedError> =>
   Effect.gen(function* () {
-    const fail = (reason: string) => new StepFailedError({ step: stepDescription(step), reason })
-
-    if (step._tag === 'Key') {
-      return yield* Effect.tryPromise({ try: () => page.keyboard.press(step.key), catch: (error) => fail(firstLine(error)) })
-    }
-
-    if (step._tag === 'Wait') return yield* Effect.sleep(step.ms)
     // Pages keep hidden copies of controls (mobile and desktop layouts, closed popups): the first visible match.
     const locator = page.locator(step.selector).filter({ visible: true }).first()
     yield* Effect.promise(() => locator.waitFor({ state: 'visible', timeout: 2000 }).catch(() => undefined))
     // A selector Playwright cannot parse fails here, as the step's error.
-    const counted = (count: () => Promise<number>) => Effect.tryPromise({ try: count, catch: (error) => fail(firstLine(error)) })
+    const counted = (count: () => Promise<number>) => Effect.tryPromise({ try: count, catch: (cause) => stepFailed(step, cause) })
 
     if ((yield* counted(() => locator.count())) === 0) {
       const hidden = yield* counted(() => page.locator(step.selector).count())
 
-      return yield* fail(`${hidden > 0 ? `${hidden} matching, none visible` : 'no element matches'} (waited 2s)`)
+      return yield* new StepFailedError({
+        step: stepDescription(step),
+        reason: `${hidden > 0 ? `${hidden} matching, none visible` : 'no element matches'} (waited 2s)`,
+      })
     }
 
     yield* Effect.tryPromise({
@@ -340,6 +343,14 @@ export const runStep = ({ page, step }: { readonly page: Page; readonly step: St
           },
           Fill: ({ text }) => locator.fill(text, { timeout: 5000 }),
         }),
-      catch: (error) => fail(firstLine(error)),
+      catch: (cause) => stepFailed(step, cause),
     })
   })
+
+/** Runs one step on the first visible match; fails with one line naming the step. */
+export const runStep = ({ page, step }: { readonly page: Page; readonly step: Step }): Effect.Effect<void, StepFailedError> =>
+  Match.value(step).pipe(
+    Match.tag('Key', ({ key }) => Effect.tryPromise({ try: () => page.keyboard.press(key), catch: (cause) => stepFailed(step, cause) })),
+    Match.tag('Wait', ({ ms }) => Effect.sleep(ms)),
+    Match.orElse((locatorStep) => runLocatorStep({ page, step: locatorStep })),
+  )

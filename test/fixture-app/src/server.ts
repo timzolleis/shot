@@ -47,11 +47,13 @@ const readBody = (request: IncomingMessage) =>
     request.on('end', () => resolve(body))
   })
 
-const pages: Record<string, (user: string) => string> = {
-  '/app/persons': (user) =>
-    layout(
-      'Persons',
-      `<h1>Persons</h1><p>Signed in as ${user}</p>
+const pages = new Map<string, (user: string) => string>([
+  [
+    '/app/persons',
+    (user) =>
+      layout(
+        'Persons',
+        `<h1>Persons</h1><p>Signed in as ${user}</p>
 <section><h2>People</h2><ul><li>Ada Lovelace</li><li>Grace Hopper</li></ul><button id="invite">Invite</button></section>
 <section aria-label="Filters"><label>Name <input id="name"></label></section>
 <div id="dialog" hidden><section><h2>Invite</h2><label>Email <input id="email" type="email"></label><button id="send">Send</button><p id="sent" hidden>Sent</p></section></div>
@@ -59,11 +61,14 @@ const pages: Record<string, (user: string) => string> = {
   document.getElementById('invite').onclick = () => { document.getElementById('dialog').hidden = false }
   document.getElementById('send').onclick = () => { document.getElementById('sent').hidden = false }
 </script>`,
-    ),
-  '/settings': () =>
-    layout(
-      'Settings',
-      `<h1>Settings</h1><section><h2>Profile</h2><form id="form"><label>Name <input id="name" name="name"></label><button type="submit">Save</button></form><p id="status"></p></section>
+      ),
+  ],
+  [
+    '/settings',
+    () =>
+      layout(
+        'Settings',
+        `<h1>Settings</h1><section><h2>Profile</h2><form id="form"><label>Name <input id="name" name="name"></label><button type="submit">Save</button></form><p id="status"></p></section>
 <script>
   document.getElementById('form').onsubmit = async (event) => {
     event.preventDefault()
@@ -71,9 +76,10 @@ const pages: Record<string, (user: string) => string> = {
     catch { document.getElementById('status').textContent = 'Not saved' }
   }
 </script>`,
-    ),
-  '/animated': () => layout('Animated', '<section><h2>Bar</h2><div class="grow" style="height:24px;background:#2563eb"></div></section>'),
-}
+      ),
+  ],
+  ['/animated', () => layout('Animated', '<section><h2>Bar</h2><div class="grow" style="height:24px;background:#2563eb"></div></section>')],
+])
 
 const handle = async (request: IncomingMessage, response: ServerResponse) => {
   const url = new URL(request.url ?? '/', 'http://fixture')
@@ -118,7 +124,7 @@ const handle = async (request: IncomingMessage, response: ServerResponse) => {
   if (url.pathname === '/404') return send(response, 200, layout('Not found', '<h1>Not found</h1>'))
 
   if (url.pathname.startsWith('/api/')) return send(response, 200, '{}', { 'content-type': 'application/json' })
-  const page = pages[url.pathname]
+  const page = pages.get(url.pathname)
 
   if (page === undefined) return send(response, 404, layout('Not found', '<h1>Not found</h1>'))
   const user = userOf(request)
@@ -132,6 +138,7 @@ export const startFixtureApp = (port = 0): Promise<{ readonly server: Server; re
   new Promise((resolve) => {
     const server = createServer((request, response) => void handle(request, response))
     server.listen(port, '127.0.0.1', () => {
+      // SAFETY: a listening TCP server's address is an AddressInfo; null and string are for unbound and pipe servers.
       const { port: bound } = server.address() as AddressInfo
       resolve({ server, url: `http://127.0.0.1:${bound}` })
     })

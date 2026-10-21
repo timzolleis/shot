@@ -6,7 +6,7 @@ import {
   partDescription,
   sourceDescription,
 } from '@shot/core'
-import { Console, Effect, Option } from 'effect'
+import { Console, Effect, Option, Predicate } from 'effect'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 
@@ -34,7 +34,7 @@ export const printCaptureResults = (results: ReadonlyArray<CaptureResult>) =>
     const store = yield* ArtifactStore
 
     for (const result of results) {
-      if (result._tag !== 'CapturedResult') continue
+      if (!Predicate.isTagged(result, 'CapturedResult')) continue
       const shown = yield* displayPath(result.file)
 
       if (result.file.endsWith('.png')) {
@@ -51,4 +51,4 @@ export const printCaptureResults = (results: ReadonlyArray<CaptureResult>) =>
   })
 
 export const anyErrorFinding = (results: ReadonlyArray<CaptureResult>) =>
-  results.some((result) => result._tag === 'FailedCaptureResult' || hasErrorFinding(result.findings))
+  results.some((result) => Predicate.isTagged(result, 'FailedCaptureResult') || hasErrorFinding(result.findings))

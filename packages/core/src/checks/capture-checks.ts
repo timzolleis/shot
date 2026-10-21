@@ -38,7 +38,9 @@ export const CaptureChecksLayer = Layer.effect(
       runCaptureChecks: (input) =>
         Effect.forEach(
           checks.filter((check) => check.appliesTo(input.capture)),
-          (check) => check.runCheck(input).pipe(Effect.provideContext(context)) as Effect.Effect<ReadonlyArray<Finding>>,
+          (check) =>
+            // SAFETY: `context` was captured inside the merged plugin layers (shot-layer), which provide every check's R.
+            check.runCheck(input).pipe(Effect.provideContext(context)) as Effect.Effect<ReadonlyArray<Finding>>,
         ).pipe(Effect.map((findings) => collapsedFindings(findings.flat()))),
     })
   }),

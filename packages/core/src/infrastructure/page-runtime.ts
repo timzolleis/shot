@@ -1,10 +1,10 @@
 import type { RuntimeFinding } from '@shot/runtime'
 import { pageRuntimeEntry } from '@shot/runtime'
-import { Context, Effect, Layer, Option } from 'effect'
+import { Context, Effect, Layer, Match, Option, Schema } from 'effect'
 import { build } from 'esbuild'
 import type { Locator, Page } from 'playwright'
 
-import type { Overlay, Part, Rect } from '../capture/domain/capture.ts'
+import type { Overlay, Part, Rect, Selected } from '../capture/domain/capture.ts'
 import { AmbiguousSectionError, SectionNotFoundError, SelectionNotFoundError } from '../capture/domain/capture-error.ts'
 import { partDescription } from '../capture/domain/capture-key.ts'
 import { sectionFromTitle } from '../capture/domain/capture-plan.ts'
@@ -37,12 +37,12 @@ export class PageRuntime extends Context.Service<
       readonly part: Part
       readonly all: boolean
     }): Effect.Effect<ResolvedPart, SectionNotFoundError | AmbiguousSectionError | SelectionNotFoundError>
-    drawOverlays(input: { readonly roots: ReadonlyArray<Locator>; readonly overlays: ReadonlyArray<Overlay> }): Effect.Effect<unknown>
+    drawOverlays(input: { readonly roots: ReadonlyArray<Locator>; readonly overlays: ReadonlyArray<Overlay> }): Effect.Effect<Schema.Json>
     clearOverlays(page: Page): Effect.Effect<void>
     measureElements(input: {
       readonly roots: ReadonlyArray<Locator>
       readonly styles: ReadonlyArray<string>
-    }): Effect.Effect<ReadonlyArray<unknown>>
+    }): Effect.Effect<Schema.Json>
     runRuntimeChecks(input: {
       readonly roots: ReadonlyArray<Locator>
       readonly checks: ReadonlyArray<string>
@@ -51,6 +51,9 @@ export class PageRuntime extends Context.Service<
 >()('shot/PageRuntime') {}
 
 const partPadding = 16
+
+/** What the in-page runtime measured: JSON, since it crossed `page.evaluate`. Anything else is a runtime bug. */
+const decodePageJson = Schema.decodeUnknownEffect(Schema.Json)
 
 const bundleRuntime = Effect.promise(async () => {
     const result = await build({
@@ -114,88 +117,88 @@ export const PageRuntimeLayer = Layer.effect(
           }),
         )
 
-        if (marked._tag === 'Ambiguous') return yield* new AmbiguousSectionError({ title, matches: marked.matches })
+        return yield* Match.valueTags(marked, {
+          Ambiguous: ({ matches }) => new AmbiguousSectionError({ title, matches }),
+          NotFound: () =>
+            Effect.gen(function* () {
+              const outline = outlineText(yield* readOutline(page))
 
-        if (marked._tag === 'NotFound') {
-          const outline = outlineText(yield* readOutline(page))
+              return yield* new SectionNotFoundError({ title, outline })
+            }),
+          Marked: () =>
+            Effect.gen(function* () {
+              const locator = page.locator(`[data-shot-part="${mark}"]`)
+              const count = yield* Effect.promise(() => locator.count())
 
-          return yield* new SectionNotFoundError({ title, outline })
+              return Array.from({ length: count }, (_, index) => locator.nth(index))
+            }),
+        })
+      })
+
+    const resolveSelected = ({ page, part, all }: { readonly page: Page; readonly part: Selected; readonly all: boolean }) =>
+      Effect.gen(function* () {
+        const scopes: ReadonlyArray<Locator> = yield* Option.match(part.within, {
+          onNone: () => Effect.succeed([]),
+          onSome: (within) => {
+            const section = sectionFromTitle(within)
+
+            return sectionRoots(page, section.title, section.nth)
+          },
+        })
+
+        const pick = (locator: Locator) => (all ? locator : locator.filter({ visible: true }).first())
+        const scoped = scopes.map((scope) => pick(scope.locator(part.selector)))
+
+        const countMatches = <A>(count: () => Promise<A>) =>
+          Effect.tryPromise({
+            try: count,
+            catch: (error) =>
+              new SelectionNotFoundError({ selector: part.selector, reason: (String(error).split('\n')[0] ?? '').replace(/^[\w.]+: /, '') }),
+          })
+
+        const counts = yield* countMatches(() => Promise.all(scoped.map((root) => root.count())))
+
+        if (scoped.length > 0 && counts.some((count) => count === 0)) {
+          return yield* new SelectionNotFoundError({
+            selector: part.selector,
+            reason: `no element matches inside "${Option.getOrElse(part.within, () => '')}"; popups and dialogs render outside sections: drop --section`,
+          })
         }
 
-        const locator = page.locator(`[data-shot-part="${mark}"]`)
-        const count = yield* Effect.promise(() => locator.count())
+        const roots = scoped.length > 0 ? scoped : [pick(page.locator(part.selector))]
+        const first = roots[0]!.first()
+        // Content that renders after the scene (a toast, a popup) gets a moment to appear.
+        yield* Effect.promise(() => first.waitFor({ state: 'attached', timeout: 2000 }).catch(() => undefined))
 
-        return Array.from({ length: count }, (_, index) => locator.nth(index))
+        if ((yield* countMatches(() => roots[0]!.count())) === 0) {
+          return yield* new SelectionNotFoundError({ selector: part.selector, reason: 'no element matches (waited 2s)' })
+        }
+
+        yield* Effect.promise(() => first.scrollIntoViewIfNeeded().catch(() => undefined))
+        const rects = yield* Effect.promise(() => Promise.all(roots.map((root) => pageBox(root.first()))))
+
+        if (rects.every((rect) => rect.width === 0 || rect.height === 0)) {
+          return yield* new SelectionNotFoundError({ selector: part.selector, reason: `not visible (${partDescription(part)})` })
+        }
+
+        return { clip: Option.some(yield* Effect.promise(() => paddedClip(page, rects))), roots }
       })
 
     const resolvePart = ({ page, part, all }: { readonly page: Page; readonly part: Part; readonly all: boolean }) =>
-      Effect.gen(function* () {
-        switch (part._tag) {
-          case 'WholePage':
-            return { clip: Option.none(), roots: [page.locator('body')] }
-          case 'Viewport': {
-            const clip = yield* Effect.promise(() =>
-              page.evaluate(() => ({ x: window.scrollX, y: window.scrollY, width: window.innerWidth, height: window.innerHeight })),
-            )
-
-            return { clip: Option.some(clip), roots: [page.locator('body')] }
-          }
-
-          case 'Section': {
-            const roots = yield* sectionRoots(page, part.title, part.nth)
+      Match.valueTags(part, {
+        WholePage: () => Effect.succeed<ResolvedPart>({ clip: Option.none(), roots: [page.locator('body')] }),
+        Viewport: () =>
+          Effect.promise(() =>
+            page.evaluate(() => ({ x: window.scrollX, y: window.scrollY, width: window.innerWidth, height: window.innerHeight })),
+          ).pipe(Effect.map((clip): ResolvedPart => ({ clip: Option.some(clip), roots: [page.locator('body')] }))),
+        Section: (section) =>
+          Effect.gen(function* () {
+            const roots = yield* sectionRoots(page, section.title, section.nth)
             const rects = yield* Effect.promise(() => Promise.all(roots.map(pageBox)))
 
             return { clip: Option.some(yield* Effect.promise(() => paddedClip(page, rects))), roots }
-          }
-
-          case 'Selected': {
-            const scopes = yield* Option.match(part.within, {
-              onNone: () => Effect.succeed([] as ReadonlyArray<Locator>),
-              onSome: (within) => {
-                const section = sectionFromTitle(within)
-
-                return sectionRoots(page, section.title, section.nth)
-              },
-            })
-
-            const pick = (locator: Locator) => (all ? locator : locator.filter({ visible: true }).first())
-            const scoped = scopes.map((scope) => pick(scope.locator(part.selector)))
-
-            const countMatches = <A>(count: () => Promise<A>) =>
-              Effect.tryPromise({
-                try: count,
-                catch: (error) =>
-                  new SelectionNotFoundError({ selector: part.selector, reason: (String(error).split('\n')[0] ?? '').replace(/^[\w.]+: /, '') }),
-              })
-
-            const counts = yield* countMatches(() => Promise.all(scoped.map((root) => root.count())))
-
-            if (scoped.length > 0 && counts.some((count) => count === 0)) {
-              return yield* new SelectionNotFoundError({
-                selector: part.selector,
-                reason: `no element matches inside "${Option.getOrElse(part.within, () => '')}"; popups and dialogs render outside sections: drop --section`,
-              })
-            }
-
-            const roots = scoped.length > 0 ? scoped : [pick(page.locator(part.selector))]
-            const first = roots[0]!.first()
-            // Content that renders after the scene (a toast, a popup) gets a moment to appear.
-            yield* Effect.promise(() => first.waitFor({ state: 'attached', timeout: 2000 }).catch(() => undefined))
-
-            if ((yield* countMatches(() => roots[0]!.count())) === 0) {
-              return yield* new SelectionNotFoundError({ selector: part.selector, reason: 'no element matches (waited 2s)' })
-            }
-
-            yield* Effect.promise(() => first.scrollIntoViewIfNeeded().catch(() => undefined))
-            const rects = yield* Effect.promise(() => Promise.all(roots.map((root) => pageBox(root.first()))))
-
-            if (rects.every((rect) => rect.width === 0 || rect.height === 0)) {
-              return yield* new SelectionNotFoundError({ selector: part.selector, reason: `not visible (${partDescription(part)})` })
-            }
-
-            return { clip: Option.some(yield* Effect.promise(() => paddedClip(page, rects))), roots }
-          }
-        }
+          }),
+        Selected: (selected) => resolveSelected({ page, part: selected, all }),
       })
 
     return PageRuntime.of({
@@ -209,7 +212,7 @@ export const PageRuntimeLayer = Layer.effect(
           )
 
           return measured.length === 1 ? measured[0] : measured
-        }),
+        }).pipe(Effect.flatMap(decodePageJson), Effect.orDie),
       clearOverlays: (page) => Effect.promise(() => page.evaluate(() => window.__shot.clearOverlay())).pipe(Effect.asVoid),
       measureElements: ({ roots, styles }) =>
         Effect.promise(async () =>
@@ -220,7 +223,7 @@ export const PageRuntimeLayer = Layer.effect(
               ),
             )
           ).flat(),
-        ),
+        ).pipe(Effect.flatMap(decodePageJson), Effect.orDie),
       runRuntimeChecks: ({ roots, checks }) =>
         Effect.promise(async () =>
           (await Promise.all(roots.map((root) => root.evaluate((element, names) => window.__shot.check(names, element), checks))))

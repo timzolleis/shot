@@ -1,12 +1,13 @@
 import { startFixtureApp } from '@shot/fixture-app'
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
-import { Effect, Layer, ManagedRuntime, Option } from 'effect'
+import { Effect, ManagedRuntime, Option, Predicate } from 'effect'
 import { execFile } from 'node:child_process'
 import { rmSync } from 'node:fs'
 import type { Server } from 'node:http'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
+import { Fill, Key } from '../src/capture/domain/capture.ts'
 import { defaultShootFlags, RecordFlowService, ShootTargetService, shotLayer } from '../src/index.ts'
 
 /** Adapter cases against the fixture app: a real browser, real files under test/fixture-app/.shots/. */
@@ -15,7 +16,8 @@ const fixtureDir = path.resolve(import.meta.dirname, '../../../test/fixture-app'
 const bin = path.resolve(import.meta.dirname, '../../cli/src/bin.ts')
 let server: Server
 let appUrl: string
-let runtime: ManagedRuntime.ManagedRuntime<ShootTargetService | RecordFlowService, unknown>
+const makeRuntime = () => ManagedRuntime.make(shotLayer(fixtureDir))
+let runtime: ReturnType<typeof makeRuntime>
 
 const logins = async () => Number(await (await fetch(`${appUrl}/__logins`)).text())
 
@@ -30,7 +32,7 @@ beforeAll(async () => {
     rmSync(path.join(fixtureDir, '.shots', dir), { recursive: true, force: true })
   }
 
-  runtime = ManagedRuntime.make(shotLayer(fixtureDir) as Layer.Layer<ShootTargetService | RecordFlowService, unknown>)
+  runtime = makeRuntime()
 })
 
 afterAll(async () => {
@@ -52,15 +54,15 @@ describe('CaptureRunner against the fixture app', () => {
     expect(broken[0]!.findings.map((finding) => `${finding.check}: ${finding.message}`)).toEqual([
       'render: the server answered 500',
     ])
-    expect(persons.every((result) => result._tag === 'CapturedResult')).toBe(true)
+    expect(persons.every((result) => Predicate.isTagged(result, 'CapturedResult'))).toBe(true)
   })
 
   it('submit sends PATCH → aborted, console finding "blocked PATCH /api/settings" (4)', async () => {
     const [result] = await shoot('/settings', {
       ...defaultShootFlags,
       steps: [
-        { _tag: 'Fill', selector: '#name', text: 'Test' },
-        { _tag: 'Key', key: 'Enter' },
+        Fill.make({ selector: '#name', text: 'Test' }),
+        Key.make({ key: 'Enter' }),
       ],
     })
 
@@ -76,7 +78,7 @@ describe('CaptureRunner against the fixture app', () => {
     const before = await logins()
     const results = await shoot('/app/persons')
     expect(await logins()).toBe(before + 1)
-    expect(results.every((result) => result._tag === 'CapturedResult')).toBe(true)
+    expect(results.every((result) => Predicate.isTagged(result, 'CapturedResult'))).toBe(true)
   })
 
   it('two processes, same user → logIn hook called once (14)', async () => {
@@ -108,6 +110,6 @@ describe('RecordFlowService against the fixture app', () => {
     const result = await record('broken-submit')
     expect(result._tag).toBe('StoppedFlow')
     expect(result.stills).toHaveLength(2)
-    expect(result._tag === 'StoppedFlow' && result.failedStep).toBe('submit')
+    expect(Predicate.isTagged(result, 'StoppedFlow') && result.failedStep).toBe('submit')
   })
 })

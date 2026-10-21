@@ -46,7 +46,7 @@ export const Hover = Schema.TaggedStruct('Hover', { selector: Schema.String })
 export const Focus = Schema.TaggedStruct('Focus', { selector: Schema.String })
 export const Press = Schema.TaggedStruct('Press', { selector: Schema.String })
 export const Wait = Schema.TaggedStruct('Wait', { ms: Schema.Number })
-export const Step = Schema.Union([Click, Fill, Key, Hover, Focus, Press, Wait])
+export const Step = Schema.Union([Click, Fill, Key, Hover, Focus, Press, Wait]).pipe(Schema.toTaggedUnion('_tag'))
 
 export type Step = typeof Step.Type
 
@@ -79,6 +79,11 @@ export const Still = Schema.TaggedStruct('Still', { overlays: Schema.Array(Overl
 export const Frames = Schema.TaggedStruct('Frames', { count: Schema.Number, everyMs: Schema.Number, slow: Schema.Number })
 export const Measure = Schema.TaggedStruct('Measure', { styles: Schema.Array(Schema.String), all: Schema.Boolean })
 export const AriaTree = Schema.TaggedStruct('AriaTree', {})
+
+export type Still = typeof Still.Type
+
+export type Frames = typeof Frames.Type
+
 export const Output = Schema.Union([Still, Frames, Measure, AriaTree])
 
 export type Output = typeof Output.Type

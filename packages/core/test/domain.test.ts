@@ -4,15 +4,15 @@ import { Option, Result } from 'effect'
 import { userFromAlias } from '../src/app/app-user.ts'
 import { captureFileFromKey } from '../src/artifact/session.ts'
 import type { Session } from '../src/artifact/session.ts'
-import type { Capture, RouteSource } from '../src/capture/domain/capture.ts'
+import { type Capture, Click, Focus, Key, RouteSource, Section } from '../src/capture/domain/capture.ts'
 import { captureKey } from '../src/capture/domain/capture-key.ts'
 import { defaultShootFlags, planCapturesFromFlags, planDefaultCaptures } from '../src/capture/domain/capture-plan.ts'
-import type { CaptureResult } from '../src/capture/domain/capture-result.ts'
+import { CapturedResult, type CaptureResult } from '../src/capture/domain/capture-result.ts'
 import { evidenceReportFromSession } from '../src/evidence/domain/evidence-report.ts'
 import { evidenceEndMarker, evidenceStartMarker, prBodyWithEvidence } from '../src/evidence/domain/pr-body.ts'
 import { megabyte, videoEncodingForBudget } from '../src/evidence/domain/video-budget.ts'
 
-const persons: RouteSource = { _tag: 'RouteSource', path: '/app/persons', user: 'admin@example.org', params: {} }
+const persons = RouteSource.make({ path: '/app/persons', user: 'admin@example.org', params: {} })
 
 const failureTag = (result: Result.Result<unknown, { readonly _tag: string }>) =>
   Result.isFailure(result) ? result.failure._tag : 'ok'
@@ -61,9 +61,9 @@ describe('planCapturesFromFlags', () => {
     const capture = onlyCapture({
       ...defaultShootFlags,
       steps: [
-        { _tag: 'Focus', selector: '#a' },
-        { _tag: 'Click', selector: '#b' },
-        { _tag: 'Key', key: 'Enter' },
+        Focus.make({ selector: '#a' }),
+        Click.make({ selector: '#b' }),
+        Key.make({ key: 'Enter' }),
       ],
     })
 
@@ -75,9 +75,9 @@ describe('planDefaultCaptures', () => {
   it('one still per section; repeated titles get nth', () => {
     const plan = planDefaultCaptures({ source: persons, flags: defaultShootFlags, sections: ['Profile', 'Sizes', 'Sizes'] })
     expect(plan.map((capture) => capture.part)).toEqual([
-      { _tag: 'Section', title: 'Profile', nth: Option.none() },
-      { _tag: 'Section', title: 'Sizes', nth: Option.some(0) },
-      { _tag: 'Section', title: 'Sizes', nth: Option.some(1) },
+      Section.make({ title: 'Profile', nth: Option.none() }),
+      Section.make({ title: 'Sizes', nth: Option.some(0) }),
+      Section.make({ title: 'Sizes', nth: Option.some(1) }),
     ])
   })
 })
@@ -121,14 +121,8 @@ describe('evidenceReportFromSession (11)', () => {
     const capture = onlyCapture(defaultShootFlags)
     const key = captureKey(capture)
 
-    const captured = (label: string): CaptureResult => ({
-      _tag: 'CapturedResult',
-      capture,
-      key,
-      file: `.shots/s/${label}/${key}.png`,
-      measurements: null,
-      findings: [],
-    })
+    const captured = (label: string): CaptureResult =>
+      CapturedResult.make({ capture, key, file: `.shots/s/${label}/${key}.png`, measurements: null, findings: [] })
 
     const session: Session = {
       name: 's',

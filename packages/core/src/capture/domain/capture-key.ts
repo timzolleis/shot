@@ -1,4 +1,4 @@
-import { Match, Option, Schema } from 'effect'
+import { Match, Option, Predicate, Schema } from 'effect'
 import { createHash } from 'node:crypto'
 
 import { Capture, type Output, type Part, Source, Step, Variant } from './capture.ts'
@@ -9,17 +9,22 @@ export type CaptureKey = string
 const encodeCaptureJson = Schema.encodeSync(Schema.toCodecJson(Capture))
 const encodeGroupJson = Schema.encodeSync(Schema.toCodecJson(Schema.Struct({ source: Source, variant: Variant, scene: Schema.Array(Step) })))
 
-/** JSON with sorted keys: equal values give equal strings. */
-export const canonicalJson = (value: unknown): string =>
-  JSON.stringify(value, (_key, field: unknown) =>
-    field !== null && typeof field === 'object' && !Array.isArray(field)
-      ? Object.fromEntries(
-          Object.entries(field)
-            .filter(([, entry]) => entry !== undefined)
-            .sort(([a], [b]) => a.localeCompare(b)),
-        )
-      : field,
+const isJsonArray = (value: Schema.JsonArray | Schema.JsonObject): value is Schema.JsonArray => Array.isArray(value)
+
+const sortedJson = (value: Schema.Json): Schema.Json => {
+  if (value === null || Predicate.isString(value) || Predicate.isNumber(value) || Predicate.isBoolean(value)) return value
+
+  if (isJsonArray(value)) return value.map(sortedJson)
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, entry]) => [key, sortedJson(entry)]),
   )
+}
+
+/** JSON with sorted keys: equal values give equal strings. */
+export const canonicalJson = (value: Schema.Json): string => JSON.stringify(sortedJson(value))
 
 const hashOfText = (text: string, length = 6): string => createHash('sha256').update(text).digest('hex').slice(0, length)
 
@@ -90,7 +95,7 @@ export const captureKey = (capture: Capture): CaptureKey =>
 export const captureGroupKey = (capture: Capture): string =>
   canonicalJson({
     group: encodeGroupJson({ source: capture.source, variant: capture.variant, scene: capture.scene }),
-    frames: capture.output._tag === 'Frames' ? encodeCaptureJson(capture) : undefined,
+    frames: Predicate.isTagged(capture.output, 'Frames') ? encodeCaptureJson(capture) : null,
   })
 
 export const captureFileExtension = (output: Output): 'png' | 'json' | 'txt' =>

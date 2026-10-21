@@ -1,7 +1,7 @@
 import { Effect, FileSystem, Layer, Option, Schema } from 'effect'
 import path from 'node:path'
 
-import { ArtifactStore, type HostDefaults } from '../artifact/artifact-store.ts'
+import { ArtifactStore } from '../artifact/artifact-store.ts'
 import {
   captureFileFromKey,
   labelDirFromSession,
@@ -52,7 +52,7 @@ export const FileArtifactStoreLayer = Layer.effect(
       Effect.gen(function* () {
         yield* fs.makeDirectory(path.dirname(file), { recursive: true })
         const temporary = `${file}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`
-        yield* typeof content === 'string' ? fs.writeFileString(temporary, content) : fs.writeFile(temporary, content)
+        yield* content instanceof Uint8Array ? fs.writeFile(temporary, content) : fs.writeFileString(temporary, content)
         yield* fs.rename(temporary, file)
       }).pipe(Effect.orDie)
 
@@ -103,7 +103,7 @@ export const FileArtifactStoreLayer = Layer.effect(
           const file = captureFileFromKey({ sessionDir, label, key, extension })
           yield* writeAtomic(absolutePath(file), content)
 
-          if (measurements !== undefined && extension !== 'json') {
+          if (measurements !== null && extension !== 'json') {
             yield* writeAtomic(absolutePath(`${file.slice(0, -extension.length)}json`), JSON.stringify(measurements, null, 2))
           }
 
@@ -181,7 +181,7 @@ export const FileArtifactStoreLayer = Layer.effect(
           return file
         }),
       readHostDefaults: (host) =>
-        Effect.map(readHostDefaultsFile, (file) => Option.fromNullishOr(file.hosts[host] as HostDefaults | undefined)),
+        Effect.map(readHostDefaultsFile, (file) => Option.fromNullishOr(file.hosts[host])),
       writeHostDefaults: ({ host, user, params }) =>
         Effect.gen(function* () {
           const file = yield* readHostDefaultsFile

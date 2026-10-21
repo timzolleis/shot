@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Option, type Scope } from 'effect'
+import { Context, Effect, Layer, Match, Option, type Scope } from 'effect'
 
 import type { AppHookFailedError, AppHookMissingError, AppNotRunningError, SessionLockTimeoutError } from '../../app/app-error.ts'
 import { openRouteSource, resolveRouteSource, type RouteSourceDeps } from '../../app/route-source-provider.ts'
@@ -84,9 +84,10 @@ export const SourceProvidersLayer = Layer.effect(
         return new SourceNotFoundError({ raw, reason: 'pass a URL (https://…) or an app path (/settings)' })
       },
       openSource: ({ source, variant, options }) =>
-        source._tag === 'UrlSource'
-          ? openUrlSource({ deps, source, variant, options })
-          : openRouteSource({ deps, source, variant, options }),
+        Match.valueTags(source, {
+          UrlSource: (url) => openUrlSource({ deps, source: url, variant, options }),
+          RouteSource: (route) => openRouteSource({ deps, source: route, variant, options }),
+        }),
     })
   }),
 )

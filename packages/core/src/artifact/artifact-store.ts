@@ -1,4 +1,4 @@
-import { Context, type Effect, type Option } from 'effect'
+import { Context, type Effect, type Option, type Schema } from 'effect'
 
 import type { CaptureResult } from '../capture/domain/capture-result.ts'
 import type { EvidenceReport } from '../evidence/domain/evidence-report.ts'
@@ -27,7 +27,7 @@ export class ArtifactStore extends Context.Service<
       readonly key: string
       readonly extension: string
       readonly content: Uint8Array | string
-      readonly measurements: unknown
+      readonly measurements: Schema.Json
     }): Effect.Effect<string>
     writeManifest(input: { readonly label: string; readonly results: ReadonlyArray<CaptureResult> }): Effect.Effect<void>
     /** A fresh directory for one flow's stills, video and trace. */

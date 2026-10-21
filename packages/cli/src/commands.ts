@@ -12,7 +12,7 @@ import {
   ShootTargetService,
   type ShootFlags,
 } from '@shot/core'
-import { Effect, Option, Schema } from 'effect'
+import { Effect, Option, Predicate, Schema } from 'effect'
 import { Argument, Command, Flag } from 'effect/cli'
 import { readFileSync } from 'node:fs'
 
@@ -173,7 +173,7 @@ const flow = Command.make(
         yield* printLine(yield* displayPath(result.trace))
       }
 
-      if (result._tag === 'StoppedFlow') {
+      if (Predicate.isTagged(result, 'StoppedFlow')) {
         yield* printLine(`error flow     ${result.flow.name}: step ${result.failedStep}: ${result.reason}`)
         process.exitCode = 1
       }

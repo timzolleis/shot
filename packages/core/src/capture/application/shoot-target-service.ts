@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, type Option } from 'effect'
+import { Context, Effect, Layer, type Option, Result } from 'effect'
 
 import { ArtifactStore } from '../../artifact/artifact-store.ts'
 import type { OutlineEntry } from '../../infrastructure/page-runtime.ts'
@@ -11,7 +11,7 @@ import {
   type ShootFlags,
   variantsFromFlags,
 } from '../domain/capture-plan.ts'
-import type { CaptureResult } from '../domain/capture-result.ts'
+import { type CaptureResult, FailedCaptureResult } from '../domain/capture-result.ts'
 import { reasonFromCaptureFailure } from '../domain/capture-failure-reason.ts'
 import { captureKey } from '../domain/capture-key.ts'
 import { renderFindingFromReason } from '../domain/finding.ts'
@@ -65,19 +65,19 @@ export const ShootTargetServiceLayer = Layer.effect(
 
         const outline = yield* outlineOf(source, flags).pipe(Effect.result)
 
-        if (outline._tag === 'Failure') {
+        if (Result.isFailure(outline)) {
           const error = outline.failure
 
           if (isRunPlanError(error)) return yield* error
 
           // The source did not render: the page capture fails with the reason, not the command (A3).
           const results = planDefaultCaptures({ source, flags, sections: [] }).map(
-            (capture): CaptureResult => ({
-              _tag: 'FailedCaptureResult',
-              capture,
-              key: captureKey(capture),
-              findings: [renderFindingFromReason(reasonFromCaptureFailure(error))],
-            }),
+            (capture): CaptureResult =>
+              FailedCaptureResult.make({
+                capture,
+                key: captureKey(capture),
+                findings: [renderFindingFromReason(reasonFromCaptureFailure(error))],
+              }),
           )
 
           yield* store.writeManifest({ label, results })

@@ -24,6 +24,7 @@ export const EvidencePublishersLayer = Layer.effect(
         .map((publisher) => ({
           publisher: publisher.publisher,
           publishEvidence: (input) =>
+            // SAFETY: `context` was captured inside the merged plugin layers (shot-layer), which provide every publisher's R.
             publisher.publishEvidence(input).pipe(Effect.provideContext(context)) as Effect.Effect<PublishedEvidence, PublishEvidenceError>,
         })),
     })

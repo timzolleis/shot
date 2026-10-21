@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Match, Option, type Schema } from 'effect'
+import { Context, Effect, Layer, Match, Option, Predicate, Result, type Schema } from 'effect'
 import type { Locator } from 'playwright'
 
 import type { AppHookFailedError, AppHookMissingError, AppNotRunningError, SessionLockTimeoutError } from '../../app/app-error.ts'
@@ -8,8 +8,7 @@ import { fitContent, type ReadyPage, runStep, settlePage } from '../../infrastru
 import { type OutlineEntry, PageRuntime } from '../../infrastructure/page-runtime.ts'
 import { cropPng, paddedRect, pngSize } from '../../infrastructure/png.ts'
 import { Sheets } from '../../infrastructure/sheets.ts'
-import type { Capture, Plan, Rect, Source, Variant } from '../domain/capture.ts'
-import type { CaptureFailure } from '../domain/capture-error.ts'
+import type { Capture, Frames, Plan, Rect, Source, Still, Variant } from '../domain/capture.ts'
 import { SelectionNotFoundError } from '../domain/capture-error.ts'
 import { reasonFromCaptureFailure } from '../domain/capture-failure-reason.ts'
 import {
@@ -20,7 +19,7 @@ import {
   partDescription,
   sourceDescription,
 } from '../domain/capture-key.ts'
-import type { CaptureResult } from '../domain/capture-result.ts'
+import { CapturedResult, type CaptureResult, FailedCaptureResult } from '../domain/capture-result.ts'
 import { collapsedFindings, consoleFindingsFromErrors, type Finding, renderFindingFromReason } from '../domain/finding.ts'
 import { type OpenSourceError, SourceProviders } from './source-providers.ts'
 
@@ -46,15 +45,15 @@ const tallWarningPx = 2000
 
 interface Produced {
   readonly content: Uint8Array | string
-  readonly measurements: unknown
+  readonly measurements: Schema.Json
   readonly findings: ReadonlyArray<Finding>
 }
 
 export const isRunPlanError = (error: OpenSourceError): error is RunPlanError =>
-  error._tag === 'AppHookMissingError' ||
-  error._tag === 'AppHookFailedError' ||
-  error._tag === 'AppNotRunningError' ||
-  error._tag === 'SessionLockTimeoutError'
+  Predicate.isTagged(error, 'AppHookMissingError') ||
+  Predicate.isTagged(error, 'AppHookFailedError') ||
+  Predicate.isTagged(error, 'AppNotRunningError') ||
+  Predicate.isTagged(error, 'SessionLockTimeoutError')
 
 export const CaptureRunnerLayer = Layer.effect(
   CaptureRunner,
@@ -65,14 +64,14 @@ export const CaptureRunnerLayer = Layer.effect(
     const store = yield* ArtifactStore
     const sheets = yield* Sheets
 
-    const still = (ready: ReadyPage, capture: Capture, runChecks: boolean, output: Extract<Capture['output'], { _tag: 'Still' }>) =>
+    const still = (ready: ReadyPage, capture: Capture, runChecks: boolean, output: Still) =>
       Effect.gen(function* () {
         const { page } = ready
         const resolved = yield* runtime.resolvePart({ page, part: capture.part, all: false })
         const findings = runChecks ? yield* checks.runCaptureChecks({ page: ready, capture, roots: resolved.roots }) : []
 
         const measurements =
-          output.overlays.length === 0 ? undefined : yield* runtime.drawOverlays({ roots: resolved.roots, overlays: output.overlays })
+          output.overlays.length === 0 ? null : yield* runtime.drawOverlays({ roots: resolved.roots, overlays: output.overlays })
 
         // Infinite animations cancel to their start: CSS and WAAPI through Playwright, SVG SMIL paused at 0 here.
         yield* Effect.promise(() =>
@@ -88,7 +87,7 @@ export const CaptureRunnerLayer = Layer.effect(
           page.screenshot({
             animations: 'disabled',
             ...Option.match(resolved.clip, {
-              onNone: () => ({ fullPage: capture.part._tag === 'WholePage' }),
+              onNone: () => ({ fullPage: Predicate.isTagged(capture.part, 'WholePage') }),
               onSome: (clip) => ({ fullPage: true, clip }),
             }),
           }),
@@ -108,18 +107,18 @@ export const CaptureRunnerLayer = Layer.effect(
      * The scene's last step starts the clock; frames are viewport screenshots every `everyMs` of animation time, slowed
      * by `slow`. A section or selection is located in every frame; all frames are cropped to where it was.
      */
-    const frames = (ready: ReadyPage, capture: Capture, output: Extract<Capture['output'], { _tag: 'Frames' }>) =>
+    const frames = (ready: ReadyPage, capture: Capture, output: Frames) =>
       Effect.gen(function* () {
         const { page, context } = ready
         const { count, everyMs, slow } = output
         const part = capture.part
 
-        const locator: Locator | undefined =
-          part._tag === 'Section'
-            ? (yield* runtime.resolvePart({ page, part, all: false })).roots[0]
-            : part._tag === 'Selected'
-              ? page.locator(part.selector).filter({ visible: true }).first()
-              : undefined
+        const locator: Locator | undefined = yield* Match.valueTags(part, {
+          Section: (section) => runtime.resolvePart({ page, part: section, all: false }).pipe(Effect.map(({ roots }) => roots[0])),
+          Selected: ({ selector }) => Effect.succeed(page.locator(selector).filter({ visible: true }).first()),
+          WholePage: () => Effect.succeed(undefined),
+          Viewport: () => Effect.succeed(undefined),
+        })
 
         const last = capture.scene.at(-1)
 
@@ -128,7 +127,7 @@ export const CaptureRunnerLayer = Layer.effect(
           const cdp = await context.newCDPSession(page)
           await cdp.send('Animation.enable')
           await cdp.send('Animation.setPlaybackRate', { playbackRate: slow })
-          await page.evaluate((rate) => (window as unknown as { __shotSetSlow?: (rate: number) => void }).__shotSetSlow?.(rate), slow)
+          await page.evaluate((rate) => window.__shotSetSlow?.(rate), slow)
 
           return { cdp }
         })
@@ -205,7 +204,7 @@ export const CaptureRunnerLayer = Layer.effect(
           title: `${sourceDescription(capture.source)} ${captureSlug(capture)} (every ${everyMs}ms, slow ${slow})`,
         })
 
-        const measurements = { area, frames: taken.list.map(({ ms }, index) => ({ index: index + 1, ms })) }
+        const measurements = { area: area ?? null, frames: taken.list.map(({ ms }, index) => ({ index: index + 1, ms })) }
 
         return { content: sheet, measurements, findings: [] } satisfies Produced
       })
@@ -213,7 +212,7 @@ export const CaptureRunnerLayer = Layer.effect(
     const produce = (ready: ReadyPage, capture: Capture, runChecks: boolean) =>
       Effect.gen(function* () {
         // Apps that scroll inside a shell: grow the viewport to the content, except for a viewport shot or frames.
-        yield* fitContent({ page: ready.page, expand: capture.part._tag !== 'Viewport' && capture.output._tag !== 'Frames' })
+        yield* fitContent({ page: ready.page, expand: !Predicate.isTagged(capture.part, 'Viewport') && !Predicate.isTagged(capture.output, 'Frames') })
         const output = capture.output
 
         return yield* Match.valueTags(output, {
@@ -231,23 +230,19 @@ export const CaptureRunnerLayer = Layer.effect(
               const resolved = yield* runtime.resolvePart({ page: ready.page, part: capture.part, all: false })
               const snapshots = yield* Effect.promise(() => Promise.all(resolved.roots.map((root) => root.ariaSnapshot())))
 
-              return { content: `${snapshots.join('\n\n')}\n`, measurements: undefined, findings: [] } satisfies Produced
+              return { content: `${snapshots.join('\n\n')}\n`, measurements: null, findings: [] } satisfies Produced
             }),
         })
       })
 
-    const failedResult = (capture: Capture, findings: ReadonlyArray<Finding>): CaptureResult => ({
-      _tag: 'FailedCaptureResult',
-      capture,
-      key: captureKey(capture),
-      findings,
-    })
+    const failedResult = (capture: Capture, findings: ReadonlyArray<Finding>): CaptureResult =>
+      FailedCaptureResult.make({ capture, key: captureKey(capture), findings })
 
     const runGroup = (captures: ReadonlyArray<Capture>, label: string, runChecks: boolean) =>
       Effect.scoped(
         Effect.gen(function* () {
           const first = captures[0]!
-          const isFrames = first.output._tag === 'Frames'
+          const isFrames = Predicate.isTagged(first.output, 'Frames')
 
           const opened = yield* providers
             .openSource({
@@ -257,7 +252,7 @@ export const CaptureRunnerLayer = Layer.effect(
             })
             .pipe(Effect.result)
 
-          if (opened._tag === 'Failure') {
+          if (Result.isFailure(opened)) {
             const error = opened.failure
 
             if (isRunPlanError(error)) return yield* error
@@ -267,7 +262,7 @@ export const CaptureRunnerLayer = Layer.effect(
 
           const ready = opened.success
 
-          if (first.scene.some((step) => step._tag === 'Press')) {
+          if (first.scene.some((step) => Predicate.isTagged(step, 'Press'))) {
             yield* Effect.addFinalizer(() => Effect.promise(() => ready.page.mouse.up().catch(() => undefined)))
           }
 
@@ -277,7 +272,7 @@ export const CaptureRunnerLayer = Layer.effect(
             runStep({ page: ready.page, step }).pipe(Effect.andThen(settlePage(ready.page))),
           ).pipe(Effect.result)
 
-          if (sceneRun._tag === 'Failure') {
+          if (Result.isFailure(sceneRun)) {
             return captures.map((capture) =>
               failedResult(capture, [
                 ...consoleFindingsFromErrors(ready.consoleErrors),
@@ -291,15 +286,15 @@ export const CaptureRunnerLayer = Layer.effect(
               const key = captureKey(capture)
               const produced = yield* produce(ready, capture, runChecks).pipe(Effect.result)
 
-              if (produced._tag === 'Failure') {
-                return failedResult(capture, [renderFindingFromReason(reasonFromCaptureFailure(produced.failure as CaptureFailure))])
+              if (Result.isFailure(produced)) {
+                return failedResult(capture, [renderFindingFromReason(reasonFromCaptureFailure(produced.failure))])
               }
 
               const extension = captureFileExtension(capture.output)
               const { content, measurements, findings } = produced.success
               const file = yield* store.writeCaptureFile({ label, key, extension, content, measurements })
 
-              if (typeof content !== 'string') {
+              if (content instanceof Uint8Array) {
                 const { width, height } = pngSize(content)
 
                 if (height > tallWarningPx) {
@@ -307,15 +302,14 @@ export const CaptureRunnerLayer = Layer.effect(
                 }
               }
 
-              return {
-                _tag: 'CapturedResult',
+              return CapturedResult.make({
                 capture,
                 key,
                 file,
-                measurements: (measurements ?? null) as Schema.Json,
+                measurements,
                 // Console errors belong to the page load: reported once, on its first capture.
                 findings: index === 0 ? collapsedFindings([...consoleFindingsFromErrors(ready.consoleErrors), ...findings]) : findings,
-              } satisfies CaptureResult
+              })
             }),
           )
         }),

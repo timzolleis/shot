@@ -45,7 +45,7 @@ const appHealthy = (url: string) =>
 const hookOf = <K extends keyof AppConfig>(app: Option.Option<AppConfig>, hook: K) =>
   Option.match(Option.flatMap(app, (config) => Option.fromNullishOr(config[hook])), {
     onNone: () => new AppHookMissingError({ hook: `app.${hook}` }),
-    onSome: (value) => Effect.succeed(value as NonNullable<AppConfig[K]>),
+    onSome: (value) => Effect.succeed(value),
   })
 
 export const AppHooksLayer = Layer.effect(

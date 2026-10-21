@@ -1,4 +1,4 @@
-import { Effect, FileSystem, Layer } from 'effect'
+import { Effect, FileSystem, Layer, Schema } from 'effect'
 import { ChildProcess, ChildProcessSpawner } from 'effect/process'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
@@ -6,6 +6,9 @@ import { createRequire } from 'node:module'
 import { VideoEncoder } from '../evidence/application/video-encoder.ts'
 import { VideoTooLargeError } from '../evidence/domain/evidence-error.ts'
 import { type VideoEncoding, videoEncodingForBudget } from '../evidence/domain/video-budget.ts'
+
+/** `ffmpeg-static` exports the binary's path, or null on a platform it has no binary for. */
+const decodeBundledFfmpeg = Schema.decodeUnknownSync(Schema.String)
 
 /** `$SHOT_FFMPEG`, else `ffmpeg` on the PATH, else the bundled `ffmpeg-static`. */
 const ffmpegBinary = (): string => {
@@ -18,7 +21,7 @@ const ffmpegBinary = (): string => {
 
     return 'ffmpeg'
   } catch {
-    return createRequire(import.meta.url)('ffmpeg-static') as string
+    return decodeBundledFfmpeg(createRequire(import.meta.url)('ffmpeg-static'))
   }
 }
 

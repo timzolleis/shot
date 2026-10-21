@@ -1,19 +1,19 @@
 import { Effect, Option } from 'effect'
 
-import type { Focus } from '../capture/domain/capture.ts'
+import { Step } from '../capture/domain/capture.ts'
 import { settlePage } from '../infrastructure/page-lifecycle.ts'
 import type { CaptureCheck } from '../plugin/capture-check.ts'
 import { isStill } from './runtime-check.ts'
 
-type FocusStep = typeof Focus.Type
+const isFocusStep = Step.isAnyOf(['Focus'])
 
 /** The focused element's surroundings, focused and blurred: identical pixels mean no visible focus indicator. */
 export const focusCheck: CaptureCheck = {
   check: 'focus',
-  appliesTo: (capture) => isStill(capture) && capture.scene.some((step) => step._tag === 'Focus'),
+  appliesTo: (capture) => isStill(capture) && capture.scene.some(isFocusStep),
   runCheck: ({ page: { page }, capture }) =>
     Effect.gen(function* () {
-      const step = capture.scene.findLast((candidate): candidate is FocusStep => candidate._tag === 'Focus')
+      const step = capture.scene.findLast(isFocusStep)
 
       if (step === undefined) return []
 
@@ -36,7 +36,9 @@ export const focusCheck: CaptureCheck = {
 
       const clip = { ...area, x: Math.max(0, area.x), y: Math.max(0, area.y) }
       const focused = yield* Effect.promise(() => page.screenshot({ fullPage: true, clip }))
-      yield* Effect.promise(() => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur()))
+      yield* Effect.promise(() => page.evaluate(() => {
+          if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+        }))
       yield* settlePage(page)
       const blurred = yield* Effect.promise(() => page.screenshot({ fullPage: true, clip }))
       yield* Effect.promise(async () => {

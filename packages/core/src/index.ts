@@ -8,7 +8,7 @@ export type { FlowBody, FlowDefinition, FlowHeader, FlowStep } from './flow/appl
 
 export type { Hook } from './plugin/hook.ts'
 
-export { effectFromHook, messageFromUnknown } from './plugin/hook.ts'
+export { effectFromHook, messageFromCause } from './plugin/hook.ts'
 
 export type { ShotPlatform, ShotPlugin } from './plugin/shot-plugin.ts'
 

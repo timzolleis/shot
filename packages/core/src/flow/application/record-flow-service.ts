@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Option } from 'effect'
+import { Context, Effect, Layer, Match, Option, Schema, SchemaIssue } from 'effect'
 import { existsSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import path from 'node:path'
@@ -10,11 +10,11 @@ import { slugFromText } from '../../capture/domain/capture-key.ts'
 import { VideoEncoder } from '../../evidence/application/video-encoder.ts'
 import type { VideoTooLargeError } from '../../evidence/domain/evidence-error.ts'
 import { settlePage } from '../../infrastructure/page-lifecycle.ts'
-import { effectFromHook, messageFromUnknown } from '../../plugin/hook.ts'
+import { effectFromHook, type Hook, messageFromCause } from '../../plugin/hook.ts'
 import { ShotConfig } from '../../plugin/shot-config.ts'
-import type { Flow, FlowResult, FlowStill } from '../domain/flow.ts'
+import { CompletedFlow, type Flow, type FlowResult, type FlowStill, StoppedFlow } from '../domain/flow.ts'
 import { FlowInvalidError, FlowNotFoundError } from '../domain/flow-error.ts'
-import type { FlowDefinition } from './define-flow.ts'
+import { FlowDefinition } from './define-flow.ts'
 
 export interface RecordFlowCommand {
   /** A flow name (`shots/<name>.flow.ts`) or a file. */
@@ -47,8 +47,9 @@ const flowCandidates = ({ raw, projectRoot }: { readonly raw: string; readonly p
   path.join(projectRoot, 'shots', raw),
 ]
 
-const isFlowDefinition = (value: unknown): value is FlowDefinition =>
-  typeof value === 'object' && value !== null && (value as { _tag?: unknown })._tag === 'FlowDefinition'
+const decodeFlowModule = Schema.decodeUnknownEffect(Schema.Struct({ default: FlowDefinition }))
+
+const formatIssue = SchemaIssue.makeFormatterDefault()
 
 export const RecordFlowServiceLayer = Layer.effect(
   RecordFlowService,
@@ -66,15 +67,17 @@ export const RecordFlowServiceLayer = Layer.effect(
         if (file === undefined) return yield* new FlowNotFoundError({ flow: raw, looked: looked.map((candidate) => path.relative(process.cwd(), candidate)) })
 
         const module = yield* Effect.tryPromise({
-          try: () => import(pathToFileURL(file).href) as Promise<{ default?: unknown }>,
-          catch: (error) => new FlowInvalidError({ file, reason: messageFromUnknown(error) }),
+          try: () => import(pathToFileURL(file).href),
+          catch: (cause) => new FlowInvalidError({ file, reason: messageFromCause(cause) }),
         })
 
-        if (!isFlowDefinition(module.default)) {
-          return yield* new FlowInvalidError({ file, reason: 'the default export is not defineFlow(...)' })
-        }
+        const decoded = yield* decodeFlowModule(module).pipe(
+          Effect.mapError(
+            (error) => new FlowInvalidError({ file, reason: `the default export is not defineFlow(...): ${formatIssue(error.issue)}` }),
+          ),
+        )
 
-        return { file, definition: module.default }
+        return { file, definition: decoded.default }
       })
 
     return RecordFlowService.of({
@@ -89,7 +92,7 @@ export const RecordFlowServiceLayer = Layer.effect(
           name,
           file: path.relative(store.projectRoot, file),
           start: header.start,
-          as: source._tag === 'RouteSource' ? source.user : '',
+          as: Match.valueTags(source, { RouteSource: ({ user }) => user, UrlSource: () => '' }),
           params,
         }
 
@@ -120,14 +123,14 @@ export const RecordFlowServiceLayer = Layer.effect(
             const stills: Array<FlowStill> = []
             let stopped: Option.Option<{ step: string; reason: string }> = Option.none()
 
-            const step = async (stepName: string, action: () => unknown) => {
+            const step = async <A>(stepName: string, action: () => Hook<A>) => {
               if (Option.isSome(stopped)) throw new FlowStopped()
               process.stderr.write(`step ${stepName}\n`)
 
               try {
-                await Effect.runPromise(effectFromHook(() => action() as never, (message) => new Error(message)))
+                await Effect.runPromise(effectFromHook(action, (message) => new Error(message)))
               } catch (error) {
-                stopped = Option.some({ step: stepName, reason: messageFromUnknown(error) })
+                stopped = Option.some({ step: stepName, reason: messageFromCause(error) })
                 throw new FlowStopped()
               }
 
@@ -139,10 +142,10 @@ export const RecordFlowServiceLayer = Layer.effect(
 
             yield* Effect.promise(async () => {
               try {
-                await Effect.runPromise(effectFromHook(() => body({ page, step }) as never, (message) => new Error(message)))
+                await Effect.runPromise(effectFromHook(() => body({ page, step }), (message) => new Error(message)))
               } catch (error) {
                 if (Option.isNone(stopped) && !(error instanceof FlowStopped)) {
-                  stopped = Option.some({ step: '(outside a step)', reason: messageFromUnknown(error) })
+                  stopped = Option.some({ step: '(outside a step)', reason: messageFromCause(error) })
                 }
               }
             })
@@ -175,9 +178,9 @@ export const RecordFlowServiceLayer = Layer.effect(
         }
 
         const flowResult: FlowResult = Option.match(recorded.stopped, {
-          onNone: () => ({ _tag: 'CompletedFlow' as const, flow, stills: recorded.stills, video: videoFile, trace: recorded.trace }),
-          onSome: ({ step, reason }) => ({
-            _tag: 'StoppedFlow' as const,
+          onNone: () => CompletedFlow.make({ flow, stills: recorded.stills, video: videoFile, trace: recorded.trace }),
+          onSome: ({ step, reason }) =>
+            StoppedFlow.make({
             flow,
             stills: recorded.stills,
             video: videoFile,

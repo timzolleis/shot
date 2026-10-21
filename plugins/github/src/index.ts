@@ -12,7 +12,8 @@ import {
   runProcess,
   type ShotPlugin,
 } from '@shot/core'
-import { Context, Effect, Layer } from 'effect'
+import { Context, Effect, Layer, Schema } from 'effect'
+import { ChildProcessSpawner } from 'effect/process'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
@@ -25,14 +26,26 @@ export const GhCliLayer = Layer.effect(
   GhCli,
   Effect.gen(function* () {
     const store = yield* ArtifactStore
-    const context = yield* Effect.context<never>()
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
 
     return GhCli.of({
       runGh: (args) =>
-        runProcess({ command: 'gh', args, cwd: store.projectRoot }).pipe(Effect.provideContext(context)) as Effect.Effect<ProcessOutput>,
+        runProcess({ command: 'gh', args, cwd: store.projectRoot }).pipe(
+          Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+        ),
     })
   }),
 )
+
+/** `gh … --json` output; anything else is a gh bug, so it dies. */
+const decodeGhJson = <S extends Schema.Top>(schema: S) => (stdout: string) =>
+  Schema.decodeUnknownEffect(Schema.fromJsonString(schema))(stdout).pipe(Effect.orDie)
+
+const decodeRepoView = decodeGhJson(
+  Schema.Struct({ nameWithOwner: Schema.String, viewerPermission: Schema.NullOr(Schema.String) }),
+)
+
+const decodePrView = decodeGhJson(Schema.Struct({ number: Schema.Number, body: Schema.String, url: Schema.String }))
 
 /** `gh --attach` exists from 2.99 (C10). */
 export const minimumGhVersion = [2, 99, 0] as const
@@ -77,7 +90,7 @@ export const publishEvidenceToPr = Effect.fn('github.publishEvidence')(function*
   const repo = yield* gh.runGh(['repo', 'view', '--json', 'nameWithOwner,viewerPermission'])
 
   if (repo.exitCode !== 0) return yield* new GhMissingError({ reason: firstLine(repo.stderr) })
-  const { nameWithOwner, viewerPermission } = JSON.parse(repo.stdout) as { nameWithOwner: string; viewerPermission: string | null }
+  const { nameWithOwner, viewerPermission } = yield* decodeRepoView(repo.stdout)
 
   if (!pushPermissions.has(viewerPermission ?? '')) {
     return yield* new NoPushAccessError({ repository: nameWithOwner, permission: viewerPermission ?? '' })
@@ -93,7 +106,7 @@ export const publishEvidenceToPr = Effect.fn('github.publishEvidence')(function*
     return yield* new GhCommandFailedError({ command: 'gh pr view', stderr: view.stderr })
   }
 
-  const current = JSON.parse(view.stdout) as { number: number; body: string; url: string }
+  const current = yield* decodePrView(view.stdout)
   const body = prBodyWithEvidence({ body: current.body, evidenceMarkdown: evidenceMarkdownFromReport(report) })
   const bodyFile = path.join(store.sessionDir, 'report', 'pr-body.md')
   yield* Effect.promise(async () => {

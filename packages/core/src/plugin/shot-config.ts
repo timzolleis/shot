@@ -1,4 +1,4 @@
-import { Context, Data, Effect, Layer, Option } from 'effect'
+import { Context, Data, Effect, Layer, Option, Predicate } from 'effect'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -6,7 +6,7 @@ import type { BrowserContext, Page } from 'playwright'
 
 import type { Mode } from '../capture/domain/capture.ts'
 import { videoLimitBytes } from '../evidence/domain/video-budget.ts'
-import { type Hook, messageFromUnknown } from './hook.ts'
+import { type Hook, messageFromCause } from './hook.ts'
 import type { ShotPlugin } from './shot-plugin.ts'
 
 /** Where the project's app runs and how a user logs in (D13). Hooks return a Promise, an Effect or a value. */
@@ -92,14 +92,18 @@ export const loadShotConfig = (cwd: string) =>
       onNone: () => Effect.succeed<ShotConfigInput>({}),
       onSome: (file) =>
         Effect.tryPromise({
-          try: async () => (await import(pathToFileURL(file).href)) as { default?: unknown },
-          catch: (error) => new ShotConfigInvalidError({ file, reason: messageFromUnknown(error) }),
+          try: () => import(pathToFileURL(file).href),
+          catch: (cause) => new ShotConfigInvalidError({ file, reason: messageFromCause(cause) }),
         }).pipe(
           Effect.flatMap((module) =>
             Effect.gen(function* () {
-              if (typeof module.default === 'object' && module.default !== null) return module.default as ShotConfigInput
+              if (!Predicate.isObject(module.default)) {
+                return yield* new ShotConfigInvalidError({ file, reason: 'the default export is not defineConfig({...})' })
+              }
 
-              return yield* new ShotConfigInvalidError({ file, reason: 'the default export is not defineConfig({...})' })
+              // SAFETY: `defineConfig` types the file; hooks and plugin layers cannot be decoded, so only "an object" is
+              // checked here.
+              return module.default as ShotConfigInput
             }),
           ),
         ),

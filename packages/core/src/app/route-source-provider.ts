@@ -1,8 +1,8 @@
-import { Effect, Option } from 'effect'
+import { Effect, Option, Result } from 'effect'
 
 import type { ArtifactStore } from '../artifact/artifact-store.ts'
 import type { OpenSourceOptions } from '../capture/application/source-providers.ts'
-import type { RouteSource, Variant } from '../capture/domain/capture.ts'
+import { RouteSource, type Variant } from '../capture/domain/capture.ts'
 import {
   SourceNotFoundError,
   SourceRedirectedError,
@@ -15,7 +15,7 @@ import {
   blockWrites,
   collectPageErrors,
   contextOptionsFromVariant,
-  makeErrorLog,
+  createErrorLog,
   prepareContext,
   type ReadyPage,
   renderTimeoutMs,
@@ -65,7 +65,7 @@ export const resolveRouteSource = ({
     if (Option.isNone(user)) return yield* new UserMissingError({ path })
     const defaultParams = Option.isNone(as) ? Option.getOrElse(Option.map(defaults, (found) => found.params), () => ({})) : {}
 
-    return { _tag: 'RouteSource', path, user: user.value, params: { ...defaultParams, ...params } } satisfies RouteSource
+    return RouteSource.make({ path, user: user.value, params: { ...defaultParams, ...params } })
   })
 
 /**
@@ -112,7 +112,7 @@ export const openRouteSource = ({
         slow: options.slowClock,
         determinism: deps.config.determinism.routes === true ? Option.some(deps.config.determinism) : Option.none(),
       })
-      const log = makeErrorLog()
+      const log = createErrorLog()
 
       if (deps.hooks.writes === 'block') yield* blockWrites({ context, origin: target.origin, log })
       const page = yield* Effect.promise(() => context.newPage())
@@ -150,7 +150,7 @@ export const openRouteSource = ({
         return yield* new SourceRedirectedError({ source, landedOn: `${landed.pathname}${landed.search}` })
       }
 
-      if (ready._tag === 'Failure') return yield* new SourceRenderFailedError({ source, reason: ready.failure.message })
+      if (Result.isFailure(ready)) return yield* new SourceRenderFailedError({ source, reason: ready.failure.message })
 
       if (Option.isNone(ready.success)) {
         return yield* new SourceTimedOutError({ source, waitedMs: renderTimeoutMs, consoleErrors: [...log.errors] })

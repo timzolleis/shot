@@ -28,7 +28,7 @@ export const shotLayer = (cwd: string) => {
 
   const plugins = Layer.unwrap(
     Effect.map(ShotConfig, (loaded) =>
-      loaded.plugins.length === 0 ? Layer.empty : Layer.mergeAll(...(loaded.plugins.map((plugin) => plugin.layer) as [Layer.Layer<any>])),
+      Layer.mergeAll(Layer.empty, ...loaded.plugins.map((plugin) => plugin.layer)),
     ),
   ).pipe(Layer.provide(shotPlatform))
 

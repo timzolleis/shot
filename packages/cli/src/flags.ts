@@ -1,4 +1,4 @@
-import type { Step } from '@shot/core'
+import { Click, Fill, Focus, Hover, Key, Press, type Step, Wait } from '@shot/core'
 import { Schema } from 'effect'
 
 /** `<css>=<text>`, split at the last "=": the selector may hold one (`[name=email]=a@b.c`), the text may not. */
@@ -30,21 +30,21 @@ export const stepsFromArgv = (argv: ReadonlyArray<string>): ReadonlyArray<Step> 
 
     switch (match[1]) {
       case 'click':
-        return [{ _tag: 'Click', selector: value }]
+        return [Click.make({ selector: value })]
       case 'hover':
-        return [{ _tag: 'Hover', selector: value }]
+        return [Hover.make({ selector: value })]
       case 'focus':
-        return [{ _tag: 'Focus', selector: value }]
+        return [Focus.make({ selector: value })]
       case 'press':
-        return [{ _tag: 'Press', selector: value }]
+        return [Press.make({ selector: value })]
       case 'key':
-        return [{ _tag: 'Key', key: value }]
+        return [Key.make({ key: value })]
       case 'wait':
-        return [{ _tag: 'Wait', ms: Number(value) }]
+        return [Wait.make({ ms: Number(value) })]
       default: {
         const separator = value.lastIndexOf('=')
 
-        return [{ _tag: 'Fill', selector: value.slice(0, separator), text: value.slice(separator + 1) }]
+        return [Fill.make({ selector: value.slice(0, separator), text: value.slice(separator + 1) })]
       }
     }
   })

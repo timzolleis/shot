@@ -1,4 +1,4 @@
-import { Option } from 'effect'
+import { Match, Option, Predicate } from 'effect'
 
 import type { Session } from '../../artifact/session.ts'
 import { labelDisplayName } from '../../artifact/session.ts'
@@ -58,7 +58,7 @@ export const evidenceReportFromSession = (session: Session): EvidenceReport => {
   const keys = [
     ...new Set(
       session.labels.flatMap((entry) =>
-        entry.captures.filter((result) => result.capture.output._tag === 'Still').map((result) => result.key),
+        entry.captures.filter((result) => Predicate.isTagged(result.capture.output, 'Still')).map((result) => result.key),
       ),
     ),
   ]
@@ -101,8 +101,10 @@ export const evidenceReportFromSession = (session: Session): EvidenceReport => {
         name: flow.flow.name,
         video: flow.video,
         stills: flow.stills,
-        stoppedAt:
-          flow._tag === 'StoppedFlow' ? Option.some({ step: flow.failedStep, reason: flow.reason }) : Option.none(),
+        stoppedAt: Match.valueTags(flow, {
+          StoppedFlow: ({ failedStep, reason }) => Option.some({ step: failedStep, reason }),
+          CompletedFlow: () => Option.none(),
+        }),
       }),
     ),
   )
@@ -119,20 +121,21 @@ export const evidenceReportFromSession = (session: Session): EvidenceReport => {
             })),
           ),
           ...entry.flows.flatMap((flow) =>
-            flow._tag === 'StoppedFlow'
-              ? [
-                  {
-                    subject: `flow ${flow.flow.name}`,
-                    finding: {
-                      check: 'flow',
-                      severity: 'error' as const,
-                      message: `step ${flow.failedStep}: ${flow.reason}`,
-                      selector: '',
-                      rect: Option.none(),
-                    },
+            Match.valueTags(flow, {
+              StoppedFlow: ({ failedStep, reason }) => [
+                {
+                  subject: `flow ${flow.flow.name}`,
+                  finding: {
+                    check: 'flow',
+                    severity: 'error' as const,
+                    message: `step ${failedStep}: ${reason}`,
+                    selector: '',
+                    rect: Option.none(),
                   },
-                ]
-              : [],
+                },
+              ],
+              CompletedFlow: () => [],
+            }),
           ),
         ],
       }),

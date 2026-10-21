@@ -46,12 +46,29 @@ const fakeGh = (answers: Record<string, ProcessOutput>) => {
 
 const projectRoot = mkdtempSync(path.join(tmpdir(), 'shot-github-'))
 
-const store = Layer.succeed(ArtifactStore, {
-  projectRoot,
-  sessionName: 's',
-  sessionDir: '.shots/s',
-  absolutePath: (file: string) => path.resolve(projectRoot, file),
-} as unknown as ArtifactStore['Service'])
+/** Only the paths are used; every write or read dies if the publisher reaches for it. */
+const unused = () => Effect.die('ArtifactStore: not used by the publisher')
+
+const store = Layer.succeed(
+  ArtifactStore,
+  ArtifactStore.of({
+    projectRoot,
+    sessionName: 's',
+    sessionDir: '.shots/s',
+    absolutePath: (file) => path.resolve(projectRoot, file),
+    writeCaptureFile: unused,
+    writeManifest: unused,
+    makeFlowDir: unused,
+    writeFlowResult: unused,
+    readSession: unused,
+    writeReport: unused,
+    readHostDefaults: unused,
+    writeHostDefaults: unused,
+    authFile: (sessionKey) => path.resolve(projectRoot, '.shots/auth', sessionKey),
+    removeAuthFiles: unused,
+    clean: unused,
+  }),
+)
 
 const publish = (gh: ReturnType<typeof fakeGh>) =>
   publishEvidenceToPr({ report, pr: undefined }).pipe(

@@ -15,9 +15,13 @@ export class SourceRenderFailedError extends Data.TaggedError('SourceRenderFaile
   readonly reason: string
 }> {}
 
+/** What did not finish: the app's `waitUntilReady` hook, or the page load and the network quiet after it. */
+export type ReadyWait = 'waitUntilReady' | 'load'
+
 export class SourceTimedOutError extends Data.TaggedError('SourceTimedOutError')<{
   readonly source: Source
   readonly waitedMs: number
+  readonly waitedFor: ReadyWait
   readonly consoleErrors: ReadonlyArray<string>
 }> {}
 

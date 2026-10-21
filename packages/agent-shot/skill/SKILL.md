@@ -52,6 +52,7 @@ shot /settings --as admin --select ".icon" --loupe 4             # pixel detail
 shot /settings --as admin --select "#save" --measure --style color   # box, spacing, radius, font as JSON
 shot /app --as admin --click "#menu" --frames 8 --every 50       # an animation on one sheet
 shot https://example.com --size "Pixel 8"                        # any URL, no login
+shot ./compare.html?variant=c                                    # a local HTML file
 ```
 
 ## Targets and flags
@@ -59,6 +60,7 @@ shot https://example.com --size "Pixel 8"                        # any URL, no l
 ```text
 <path> --as <user>        an app path, logged in as the user (config alias or email); shot login --as sets a default
 <url>                     any URL: no login, writes go through
+./page.html | file://…    a local HTML file, relative to the project root; query and hash kept
 --param org=acme          a login param for the logIn hook
 --mode light|dark|both
 --section "Profile"       a section by title (exact, else unique substring; "Title >> nth=1"); repeatable

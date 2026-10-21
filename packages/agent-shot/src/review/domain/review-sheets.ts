@@ -3,13 +3,15 @@ import { Match, Option, Predicate, Result } from 'effect'
 import { labelDisplayName, type Session } from '../../artifact/session.ts'
 import type { Capture, Source } from '../../capture/domain/capture.ts'
 import { partDescription, sheetKey, sourceDescription } from '../../capture/domain/capture-key.ts'
-import { type Size, sizeDescription, sizeOrder } from '../../capture/domain/size.ts'
+import { type Size, sizeDescription } from '../../capture/domain/size.ts'
 import {
   type EvidenceCell,
   type EvidenceSheet,
   evidenceReportFromSession,
   MissingCell,
   type SheetRow,
+  uniqueVariants,
+  variantDescription,
 } from '../../evidence/domain/evidence-report.ts'
 import { LabelNotFoundError, NothingToReviewError, SheetNotFoundError, SizeNotShotError } from './review-error.ts'
 import type { ReviewDraft, ReviewLabel, ReviewSheet } from './review.ts'
@@ -54,7 +56,7 @@ const withoutQuery = (source: Source): Source =>
 const alignedCapture = (capture: Capture): Capture => ({ ...capture, source: withoutQuery(capture.source) })
 
 const alignedTitle = (capture: Capture) =>
-  `${sourceDescription(capture.source)} › ${Option.getOrElse(capture.name, () => partDescription(capture.part))} (${capture.variant.mode})`
+  `${sourceDescription(capture.source)} › ${Option.getOrElse(capture.name, () => partDescription(capture.part))}`
 
 /**
  * The report's sheets for these labels, with sheets that differ only in their URL's query merged into one, so variants
@@ -93,28 +95,26 @@ const alignedSheets = ({
   return [...groups.entries()].map(([key, { capture, members }]): EvidenceSheet => {
     if (members.length === 1) return members[0]!
 
-    const sizes = [
-      ...new Map(members.flatMap((member) => member.sizes).map((size) => [sizeDescription(size), size])).values(),
-    ].toSorted(sizeOrder)
+    const variants = uniqueVariants(members.flatMap((member) => member.variants))
 
     const rows = members.flatMap((member) =>
       member.rows.map((row): SheetRow => ({
         label: row.label,
-        cells: sizes.map((size) => {
-          const index = member.sizes.findIndex((own) => sizeDescription(own) === sizeDescription(size))
+        cells: variants.map((variant) => {
+          const index = member.variants.findIndex((own) => variantDescription(own) === variantDescription(variant))
 
           return index === -1 ? MissingCell.make({}) : row.cells[index]!
         }),
       })),
     )
 
-    return { key, title: alignedTitle(capture), file: members[0]!.file, sizes, rows }
+    return { key, title: alignedTitle(capture), file: members[0]!.file, variants, rows }
   })
 }
 
 /**
- * The labels the agent named, base first, and the sheets where a label that takes a vote has a still; sizes narrowest
- * first, narrowed by `--sheet` and `--size` (F23–F27).
+ * The labels the agent named, base first, and the sheets where a label that takes a vote has a still; variants (size
+ * and mode) narrowest first, light before dark, narrowed by `--sheet` and `--size` (F23–F27).
  */
 export const reviewSheetsFromSession = ({
   session,
@@ -149,9 +149,19 @@ export const reviewSheetsFromSession = ({
 
   const wanted = new Set(request.sizes.map(sizeDescription))
 
-  const all = alignedSheets({ session, labels: order }).flatMap((sheet): ReadonlyArray<ReviewSheet> => {
-    const sizes = sheet.sizes.flatMap((size, index) => {
-      if (wanted.size > 0 && !wanted.has(sizeDescription(size))) return []
+  const aligned = alignedSheets({ session, labels: order })
+
+  const shotSizes = [
+    ...new Set(aligned.flatMap((sheet) => sheet.variants.map((variant) => sizeDescription(variant.size)))),
+  ]
+
+  for (const size of wanted) {
+    if (!shotSizes.includes(size)) return Result.fail(new SizeNotShotError({ size, sizes: shotSizes }))
+  }
+
+  const all = aligned.flatMap((sheet): ReadonlyArray<ReviewSheet> => {
+    const variants = sheet.variants.flatMap((variant, index) => {
+      if (wanted.size > 0 && !wanted.has(sizeDescription(variant.size))) return []
 
       const cells = order.map((label) => ({
         label,
@@ -160,19 +170,11 @@ export const reviewSheetsFromSession = ({
 
       const compared = cells.some(({ label, cell }) => candidates.includes(label) && isShot(cell))
 
-      return compared ? [{ size: sizeDescription(size), cells }] : []
+      return compared ? [{ variant: variantDescription(variant), cells }] : []
     })
 
-    return sizes.length === 0 ? [] : [{ key: sheet.key, title: sheet.title, sizes }]
+    return variants.length === 0 ? [] : [{ key: sheet.key, title: sheet.title, variants }]
   })
-
-  for (const size of wanted) {
-    if (!all.some((sheet) => sheet.sizes.some((entry) => entry.size === size))) {
-      const shot = [...new Set(all.flatMap((sheet) => sheet.sizes.map((entry) => entry.size)))]
-
-      return Result.fail(new SizeNotShotError({ size, sizes: shot }))
-    }
-  }
 
   const matching = (needle: string) => all.filter((sheet) => sheet.title.toLowerCase().includes(needle.toLowerCase()))
 
@@ -203,12 +205,21 @@ export const draftForSheets = ({
   const voting = review.labels.filter((label) => !label.base).map((label) => label.label)
   const keys = new Set(review.sheets.map((sheet) => sheet.key))
 
-  const hasCell = ({ sheet, label, size }: { readonly sheet: string; readonly label: string; readonly size: string }) =>
+  const hasCell = ({
+    sheet,
+    label,
+    variant,
+  }: {
+    readonly sheet: string
+    readonly label: string
+    readonly variant: string
+  }) =>
     review.sheets.some(
       (entry) =>
         entry.key === sheet &&
-        entry.sizes.some(
-          (sized) => sized.size === size && sized.cells.some((cell) => cell.label === label && isShot(cell.cell)),
+        entry.variants.some(
+          (column) =>
+            column.variant === variant && column.cells.some((cell) => cell.label === label && isShot(cell.cell)),
         ),
     )
 

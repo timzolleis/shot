@@ -108,8 +108,8 @@ describe('reviewSheetsFromSession (F23–F27)', () => {
     )
 
     expect(review.sheets).toHaveLength(1)
-    expect(review.sheets[0]!.title).toBe('/team as admin@example.org › People (light)')
-    expect(review.sheets[0]!.sizes[0]!.cells.map((cell) => `${cell.label}: ${cell.cell._tag}`)).toEqual([
+    expect(review.sheets[0]!.title).toBe('/team as admin@example.org › People')
+    expect(review.sheets[0]!.variants[0]!.cells.map((cell) => `${cell.label}: ${cell.cell._tag}`)).toEqual([
       'quiet: ShotCell',
       'dense: ShotCell',
     ])
@@ -136,21 +136,49 @@ describe('reviewSheetsFromSession (F23–F27)', () => {
     )
 
     expect(review.labels.map((label) => label.label)).toEqual(['dense'])
-    expect(review.sheets[0]!.sizes[0]!.cells.map((cell) => cell.label)).toEqual(['dense'])
+    expect(review.sheets[0]!.variants[0]!.cells.map((cell) => cell.label)).toEqual(['dense'])
   })
 
-  it('a sheet per key, sizes narrowest first; a label not shot at a size → MissingCell (F27)', () => {
+  it('a sheet per key, variants narrowest first; a label not shot in a variant → MissingCell (F27)', () => {
     const review = Result.getOrThrow(reviewSheetsFromSession({ session, request: request() }))
     expect(review.sheets.map((sheet) => sheet.key)).toEqual([peopleKey, filtersKey])
 
     expect(
-      review.sheets[0]!.sizes.map((sized) => `${sized.size}: ${sized.cells.map((cell) => cell.cell._tag).join(' ')}`),
-    ).toEqual(['iPhone 15: ShotCell ShotCell MissingCell', '1440×900: ShotCell ShotCell ShotCell'])
+      review.sheets[0]!.variants.map(
+        (column) => `${column.variant}: ${column.cells.map((cell) => cell.cell._tag).join(' ')}`,
+      ),
+    ).toEqual(['iPhone 15, light: ShotCell ShotCell MissingCell', '1440×900, light: ShotCell ShotCell ShotCell'])
+  })
+
+  it('light and dark are columns of one sheet, light first (F27)', () => {
+    const dark = Result.getOrThrow(
+      planCapturesFromFlags({
+        source: persons,
+        flags: { ...defaultShootFlags, sizes: [sizeAliases.phone], sections: ['People'], modes: ['dark'] },
+      }),
+    )[0]!
+
+    const modes: Session = {
+      name: 's',
+      dir: '.shots/s',
+      labels: ['quiet', 'dense'].map((label) => ({
+        label,
+        captures: [dark, people.phone].map((capture) => captured({ label, capture })),
+        flows: [],
+      })),
+    }
+
+    const review = Result.getOrThrow(
+      reviewSheetsFromSession({ session: modes, request: request({ base: Option.none() }) }),
+    )
+
+    expect(review.sheets).toHaveLength(1)
+    expect(review.sheets[0]!.variants.map((column) => column.variant)).toEqual(['iPhone 15, light', 'iPhone 15, dark'])
   })
 
   it('a size where only the base has a still is left out', () => {
     const review = Result.getOrThrow(reviewSheetsFromSession({ session, request: request({ labels: ['dense'] }) }))
-    expect(review.sheets[0]!.sizes.map((sized) => sized.size)).toEqual(['1440×900'])
+    expect(review.sheets[0]!.variants.map((column) => column.variant)).toEqual(['1440×900, light'])
   })
 
   it('--sheet narrows by part of the title, case-insensitive; --size by size (F25)', () => {
@@ -159,7 +187,7 @@ describe('reviewSheetsFromSession (F23–F27)', () => {
     )
 
     expect(review.sheets.map((sheet) => sheet.key)).toEqual([peopleKey])
-    expect(review.sheets[0]!.sizes.map((sized) => sized.size)).toEqual(['iPhone 15'])
+    expect(review.sheets[0]!.variants.map((column) => column.variant)).toEqual(['iPhone 15, light'])
   })
 
   it('an unknown label, sheet or size → its error; only the base → NothingToReviewError', () => {
@@ -185,7 +213,7 @@ const note = (overrides: Partial<Note> = {}): Note => ({
   id: 'n1',
   sheet: peopleKey,
   label: 'dense',
-  size: '1440×900',
+  variant: '1440×900, light',
   mark: Pin.make({ x: 40, y: 50 }),
   comment: '',
   ...overrides,
@@ -201,7 +229,7 @@ describe('draftForSheets (F31)', () => {
         { sheet: filtersKey, pick: 'before', comment: '' },
         { sheet: 'gone', pick: null, comment: '' },
       ],
-      notes: [note(), note({ id: 'n2', size: 'iPhone 15' }), note({ id: 'n3', sheet: 'gone' })],
+      notes: [note(), note({ id: 'n2', variant: 'iPhone 15, light' }), note({ id: 'n3', sheet: 'gone' })],
       pick: 'before',
       comment: 'hi',
     }
@@ -320,7 +348,7 @@ describe('feedbackMarkdown (F32)', () => {
       draft,
       elementsOf: () => elements,
       images: (cell) =>
-        cell.label === 'dense' && cell.size === '1440×900'
+        cell.label === 'dense' && cell.variant === '1440×900, light'
           ? Option.some('.shots/s/review/round-2/dense.png')
           : Option.none(),
     })
@@ -339,10 +367,10 @@ describe('feedbackMarkdown (F32)', () => {
         'Picked: dense (over quiet).',
         '> reads fastest',
         '',
-        '1. dense · 1440×900 · pin (30, 260) · `#invite` button "Invite"',
+        '1. dense · 1440×900, light · pin (30, 260) · `#invite` button "Invite"',
         '   > too tight',
         '   > against the list',
-        '2. quiet · 1440×900 · box (12, 12, 210×40) · `h2` heading "People"',
+        '2. quiet · 1440×900, light · box (12, 12, 210×40) · `h2` heading "People"',
         '   > keep this',
         '',
         'Images:',

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Compare</title>
+    <link rel="stylesheet" href="compare.css" />
+  </head>
+  <body>
+    <h1>Compare</h1>
+    <section>
+      <h2>Variant</h2>
+      <p id="variant"></p>
+      <button id="pick">Pick</button>
+    </section>
+    <script>
+      document.querySelector('#variant').textContent = new URLSearchParams(location.search).get('variant') ?? 'a'
+    </script>
+  </body>
+</html>

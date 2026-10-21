@@ -2,6 +2,7 @@ import { Context, Effect, Layer, Option } from 'effect'
 import { type BrowserContext, type Page, request } from 'playwright'
 
 import type { Mode } from '../capture/domain/capture.ts'
+import type { ReadyWait } from '../capture/domain/capture-error.ts'
 import { effectFromHook } from '../plugin/hook.ts'
 import { type AppConfig, ShotConfig } from '../plugin/shot-config.ts'
 import { AppHookFailedError, AppHookMissingError, AppNotRunningError } from './app-error.ts'
@@ -20,6 +21,8 @@ export class AppHooks extends Context.Service<
       readonly params: Readonly<Record<string, string>>
     }): Effect.Effect<void, AppHookMissingError | AppHookFailedError>
     isLoginPage(url: URL): boolean
+    /** What `waitUntilReady` waits for, to name it when it times out. */
+    readonly waitsFor: ReadyWait
     /** `waitForLoad` is the default: load, then the network quiet. */
     waitUntilReady(input: {
       readonly page: Page
@@ -98,6 +101,9 @@ export const AppHooksLayer = Layer.effect(
             onSome: (isLoginPage) => isLoginPage(url),
           },
         ),
+      waitsFor: Option.isSome(Option.flatMap(app, (config) => Option.fromNullishOr(config.waitUntilReady)))
+        ? 'waitUntilReady'
+        : 'load',
       waitUntilReady: ({ page, waitForLoad }) =>
         Option.match(
           Option.flatMap(app, (config) => Option.fromNullishOr(config.waitUntilReady)),

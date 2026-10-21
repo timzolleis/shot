@@ -27,7 +27,7 @@ interface State {
   page: ReviewPage
   draft: ReviewDraft
   sheet: number
-  size: string
+  variant: string
   flip: string | null
   tool: Tool
   zoom: number
@@ -112,7 +112,7 @@ const state: State = {
   page: emptyPage,
   draft: emptyPage.draft,
   sheet: 0,
-  size: '',
+  variant: '',
   flip: null,
   tool: 'move',
   zoom: 1,
@@ -128,7 +128,10 @@ const state: State = {
 
 const votingLabels = () => state.page.labels.filter((label) => !label.base)
 const currentSheet = () => state.page.sheets[state.sheet]!
-const currentSize = () => currentSheet().sizes.find((sized) => sized.size === state.size) ?? currentSheet().sizes[0]!
+
+const currentVariant = () =>
+  currentSheet().variants.find((column) => column.variant === state.variant) ?? currentSheet().variants[0]!
+
 const voteOf = (sheet: string): Vote | undefined => state.draft.votes.find((vote) => vote.sheet === sheet)
 
 const numbers = () =>
@@ -139,7 +142,9 @@ const numbers = () =>
   )
 
 const cellNotes = ({ notes, label }: { readonly notes: ReadonlyArray<Note>; readonly label: string }) =>
-  notes.filter((note) => note.sheet === currentSheet().key && note.size === currentSize().size && note.label === label)
+  notes.filter(
+    (note) => note.sheet === currentSheet().key && note.variant === currentVariant().variant && note.label === label,
+  )
 
 // Shell
 
@@ -292,9 +297,9 @@ const renderToolbar = () => {
     return `<button class="tool" data-tool="${tool}" aria-pressed="${state.tool === tool}" aria-label="${name} (${key})" title="${name} (${key})"><svg viewBox="0 0 20 20" aria-hidden="true">${icons[tool]}</svg></button>`
   })
 
-  const sizes = currentSheet().sizes.map(
-    (sized) =>
-      `<button class="tool" data-size="${escapeHtml(sized.size)}" aria-pressed="${sized.size === currentSize().size}">${escapeHtml(sized.size)}</button>`,
+  const variants = currentSheet().variants.map(
+    (column) =>
+      `<button class="tool" data-variant="${escapeHtml(column.variant)}" aria-pressed="${column.variant === currentVariant().variant}">${escapeHtml(column.variant)}</button>`,
   )
 
   const view = `<button class="tool" data-action="toggle-flip" aria-pressed="${state.flip !== null}" title="Flip between labels at full size (1–9)">Flip</button>`
@@ -302,7 +307,7 @@ const renderToolbar = () => {
   toolbar.innerHTML = [
     toolButtons.join(''),
     '<span class="sep"></span>',
-    sizes.join(''),
+    variants.join(''),
     '<span class="sep"></span>',
     view,
     `<button class="tool" data-action="fit" title="Zoom to fit (⇧1)">Fit</button>`,
@@ -324,7 +329,7 @@ const renderFlipHint = () => {
 }
 
 const shownCells = (): ReadonlyArray<ReviewCell> =>
-  state.flip === null ? currentSize().cells : currentSize().cells.filter((cell) => cell.label === state.flip)
+  state.flip === null ? currentVariant().cells : currentVariant().cells.filter((cell) => cell.label === state.flip)
 
 const renderMarks = () => {
   const numbered = numbers()
@@ -371,8 +376,8 @@ const renderStage = () => {
 
       const frame =
         cell._tag === 'ShotCell'
-          ? `<div class="frame" data-label="${escapeHtml(label)}"><img alt="${escapeHtml(displayLabel(label))} at ${escapeHtml(currentSize().size)}" data-scale="${cell.scale}" src="/files?t=${token}&file=${encodeURIComponent(cell.file)}"><svg xmlns="http://www.w3.org/2000/svg"></svg></div>`
-          : `<div class="empty" style="width:360px;height:240px">${cell._tag === 'FailedCell' ? 'Failed to shoot' : 'Not shot at this size'}</div>`
+          ? `<div class="frame" data-label="${escapeHtml(label)}"><img alt="${escapeHtml(displayLabel(label))} at ${escapeHtml(currentVariant().variant)}" data-scale="${cell.scale}" src="/files?t=${token}&file=${encodeURIComponent(cell.file)}"><svg xmlns="http://www.w3.org/2000/svg"></svg></div>`
+          : `<div class="empty" style="width:360px;height:240px">${cell._tag === 'FailedCell' ? 'Failed to shoot' : 'Not shot in this variant'}</div>`
 
       return `<div class="cell ${picked ? 'picked' : ''}">${head}${frame}</div>`
     })
@@ -380,7 +385,7 @@ const renderStage = () => {
 
   const images = [...world.querySelectorAll<HTMLImageElement>('img')]
 
-  const sized = images.map((image) => {
+  const column = images.map((image) => {
     const size = () => {
       const scale = Number(image.dataset['scale'] ?? '1') || 1
       const width = image.naturalWidth / scale
@@ -399,7 +404,7 @@ const renderStage = () => {
       .catch(() => undefined)
   })
 
-  Promise.all(sized).then(() => {
+  Promise.all(column).then(() => {
     if (state.fitPending) fit()
     state.fitPending = false
   })
@@ -409,7 +414,7 @@ const renderStage = () => {
 }
 
 const noteTitle = (note: Note) =>
-  `${displayLabel(note.label)} · ${note.size} · ${{ Pin: 'Comment', Box: 'Box', Arrow: 'Arrow', Pen: 'Pen' }[note.mark._tag]}`
+  `${displayLabel(note.label)} · ${note.variant} · ${{ Pin: 'Comment', Box: 'Box', Arrow: 'Arrow', Pen: 'Pen' }[note.mark._tag]}`
 
 const renderPanel = () => {
   const sheet = currentSheet()
@@ -589,7 +594,7 @@ const finishDrawing = (gesture: Extract<Gesture, { kind: 'draw' }>) => {
 
   if (mark === null) return
   const id = newId()
-  addNote({ id, sheet: currentSheet().key, label: gesture.label, size: currentSize().size, mark, comment: '' })
+  addNote({ id, sheet: currentSheet().key, label: gesture.label, variant: currentVariant().variant, mark, comment: '' })
   renderMarks()
   renderPanel()
   renderSheets()
@@ -685,9 +690,9 @@ stage.addEventListener('pointercancel', () => {
 
 const showSheet = (index: number) => {
   state.sheet = index
-  const sizes = currentSheet().sizes
+  const variants = currentSheet().variants
 
-  if (!sizes.some((sized) => sized.size === state.size)) state.size = sizes[0]!.size
+  if (!variants.some((column) => column.variant === state.variant)) state.variant = variants[0]!.variant
   state.selected = null
   state.fitPending = true
   renderAll()
@@ -769,12 +774,12 @@ toolbar.addEventListener('click', (event) => {
   const button = event.target instanceof Element ? event.target.closest<HTMLElement>('button') : null
 
   if (button === null) return
-  const { tool, size, action } = button.dataset
+  const { tool, variant, action } = button.dataset
 
   if (tool !== undefined) setTool(tools.find((candidate) => candidate === tool) ?? 'move')
 
-  if (size !== undefined) {
-    state.size = size
+  if (variant !== undefined) {
+    state.variant = variant
     state.selected = null
     state.fitPending = true
     renderToolbar()
@@ -1007,7 +1012,7 @@ const start = async () => {
 
   state.page = page
   state.draft = page.draft
-  state.size = page.sheets[0]!.sizes[0]!.size
+  state.variant = page.sheets[0]!.variants[0]!.variant
   root.replaceChildren(app)
   renderAll()
 }

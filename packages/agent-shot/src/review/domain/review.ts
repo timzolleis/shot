@@ -26,12 +26,12 @@ export const Mark = Schema.Union([Pin, Box, Arrow, Pen])
 
 export type Mark = typeof Mark.Type
 
-/** One drawing on one cell: a sheet key, a label and a size description ("iPhone 15"). An empty comment is none. */
+/** One drawing on one cell: a sheet key, a label and a sheet variant ("iPhone 15, light"). An empty comment is none. */
 export const Note = Schema.Struct({
   id: Schema.String,
   sheet: Schema.String,
   label: Schema.String,
-  size: Schema.String,
+  variant: Schema.String,
   mark: Mark,
   comment: Schema.String,
 })
@@ -60,17 +60,21 @@ export const ReviewLabel = Schema.Struct({ label: Schema.String, description: Sc
 
 export type ReviewLabel = typeof ReviewLabel.Type
 
-/** One label's cell at one size: the still, a failure, or not shot (F27). */
+/** One label's cell in one variant: the still, a failure, or not shot (F27). */
 export const ReviewCell = Schema.Struct({ label: Schema.String, cell: EvidenceCell })
 
 export type ReviewCell = typeof ReviewCell.Type
 
-export const ReviewSize = Schema.Struct({ size: Schema.String, cells: Schema.Array(ReviewCell) })
+export const ReviewVariant = Schema.Struct({ variant: Schema.String, cells: Schema.Array(ReviewCell) })
 
-export type ReviewSize = typeof ReviewSize.Type
+export type ReviewVariant = typeof ReviewVariant.Type
 
-/** One sheet key, its sizes narrowest first. */
-export const ReviewSheet = Schema.Struct({ key: Schema.String, title: Schema.String, sizes: Schema.Array(ReviewSize) })
+/** One sheet key, its variants (size and mode) narrowest first, light before dark. */
+export const ReviewSheet = Schema.Struct({
+  key: Schema.String,
+  title: Schema.String,
+  variants: Schema.Array(ReviewVariant),
+})
 
 export type ReviewSheet = typeof ReviewSheet.Type
 

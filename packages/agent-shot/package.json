@@ -1,6 +1,6 @@
 {
   "name": "agent-shot",
-  "version": "0.0.0",
+  "version": "0.1.0-beta.0",
   "description": "Agents prove UI work: shoot what changed before and after, run checks, record flows, attach the evidence to the PR.",
   "repository": {
     "type": "git",

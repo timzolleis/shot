@@ -95,16 +95,16 @@ const cellOf = ({ review, cell }: { readonly review: ReviewSheets; readonly cell
   Option.fromNullishOr(
     review.sheets
       .find((sheet) => sheet.key === cell.sheet)
-      ?.sizes.find((sized) => sized.size === cell.size)
+      ?.variants.find((column) => column.variant === cell.variant)
       ?.cells.find((entry) => entry.label === cell.label)?.cell,
   ).pipe(Option.filter((found): found is typeof ShotCell.Type => Predicate.isTagged(found, 'ShotCell')))
 
-const cellKeyText = ({ sheet, label, size }: ReviewCellKey) => JSON.stringify([sheet, label, size])
+const cellKeyText = ({ sheet, label, variant }: ReviewCellKey) => JSON.stringify([sheet, label, variant])
 
 const stillFiles = (review: ReviewSheets) =>
   review.sheets.flatMap((sheet) =>
-    sheet.sizes.flatMap((sized) =>
-      sized.cells.flatMap(({ cell }) => (Predicate.isTagged(cell, 'ShotCell') ? [cell.file] : [])),
+    sheet.variants.flatMap((column) =>
+      column.cells.flatMap(({ cell }) => (Predicate.isTagged(cell, 'ShotCell') ? [cell.file] : [])),
     ),
   )
 

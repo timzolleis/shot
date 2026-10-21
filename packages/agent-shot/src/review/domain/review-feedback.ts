@@ -12,7 +12,7 @@ import { type ReviewDecision, ReviewDecision as ReviewDecisionSchema, type Revie
 export const FeedbackNote = Schema.Struct({
   number: Schema.Number,
   label: Schema.String,
-  size: Schema.String,
+  variant: Schema.String,
   mark: Mark,
   comment: Schema.String,
   element: Schema.NullOr(PageElement),
@@ -44,11 +44,11 @@ export const ReviewFeedback = Schema.Struct({
 
 export type ReviewFeedback = typeof ReviewFeedback.Type
 
-/** A cell of the page: one sheet key, label and size. */
+/** A cell of the page: one sheet key, label and variant. */
 export interface ReviewCellKey {
   readonly sheet: string
   readonly label: string
-  readonly size: string
+  readonly variant: string
 }
 
 /** Picked: a vote or a pick. Annotated: only notes or comments. Dismissed: nothing at all (F33). */
@@ -160,9 +160,9 @@ export const elementAtMark = ({
     Pen: () => elementInBounds({ elements, bounds: markBounds(mark) }),
   })
 
-/** `<sheet key>--<label>--<size>.png` (F32). */
-export const burnedImageName = ({ sheet, label, size }: ReviewCellKey): string =>
-  `${sheet}--${slugFromText(labelDisplayName(label))}--${slugFromText(size)}.png`
+/** `<sheet key>--<label>--<variant>.png` (F32). */
+export const burnedImageName = ({ sheet, label, variant }: ReviewCellKey): string =>
+  `${sheet}--${slugFromText(labelDisplayName(label))}--${slugFromText(variant)}.png`
 
 /** The round's feedback; `images` gives each burned cell's file, `elementsOf` each cell's element map. */
 export const reviewFeedbackFromDraft = ({
@@ -187,8 +187,8 @@ export const reviewFeedbackFromDraft = ({
     const vote = draft.votes.find((entry) => entry.sheet === sheet.key)
     const notes = numbered.filter(({ note }) => note.sheet === sheet.key)
 
-    const cells = sheet.sizes.flatMap((sized) =>
-      sized.cells.map((cell) => ({ sheet: sheet.key, label: cell.label, size: sized.size })),
+    const cells = sheet.variants.flatMap((column) =>
+      column.cells.map((cell) => ({ sheet: sheet.key, label: cell.label, variant: column.variant })),
     )
 
     return {
@@ -198,7 +198,7 @@ export const reviewFeedbackFromDraft = ({
       notes: notes.map(({ note, number }) => ({
         number,
         label: note.label,
-        size: note.size,
+        variant: note.variant,
         mark: note.mark,
         comment: note.comment.trim(),
         element: Option.getOrNull(elementAtMark({ mark: note.mark, elements: elementsOf(note) })),
@@ -271,7 +271,7 @@ export const feedbackMarkdown = (feedback: ReviewFeedback): string => {
 
     for (const note of sheet.notes) {
       const element = note.element === null ? '' : ` · ${elementText(note.element)}`
-      lines.push(`${note.number}. ${labelDisplayName(note.label)} · ${note.size} · ${markText(note.mark)}${element}`)
+      lines.push(`${note.number}. ${labelDisplayName(note.label)} · ${note.variant} · ${markText(note.mark)}${element}`)
 
       if (note.comment !== '') lines.push(quoted(note.comment))
     }

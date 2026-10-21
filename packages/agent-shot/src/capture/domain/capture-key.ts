@@ -1,7 +1,7 @@
 import { Match, Option, Predicate, Schema } from 'effect'
 import { createHash } from 'node:crypto'
 
-import { Capture, Mode, type Output, type Part, Source, Step, Variant } from './capture.ts'
+import { Capture, type Output, type Part, Source, Step, Variant } from './capture.ts'
 import type { Size } from './size.ts'
 
 /** A capture's file name without extension: `<sourceSlug>--<readable>-<hash6>`. Equal captures get equal keys (A2). */
@@ -43,12 +43,29 @@ export const slugFromText = (text: string): string =>
     .replaceAll(/^-|-$/g, '')
     .slice(0, 40)
 
-/** `route-app-persons`, `url-example-com-docs`. */
+/** A file URL's last path segment, query and hash: `compare.html?variant=c`. The directories stay local. */
+const fileNameOfUrl = (url: string): string | undefined => {
+  if (!url.startsWith('file://')) return undefined
+  const { pathname, search, hash } = new URL(url)
+
+  return `${decodeURIComponent(pathname.split('/').at(-1) ?? '')}${search}${hash}`
+}
+
+/** `route-app-persons`, `url-example-com-docs`, `file-compare-html`. */
 export const sourceSlug = (source: Source): string =>
   Match.valueTags(source, {
     RouteSource: ({ path }) => ['route', slugFromText(path)].filter((part) => part !== '').join('-'),
-    UrlSource: ({ url }) =>
-      ['url', slugFromText(url.replace(/^https?:\/\//, ''))].filter((part) => part !== '').join('-'),
+    UrlSource: ({ url }) => {
+      const fileName = fileNameOfUrl(url)
+
+      return (
+        fileName === undefined
+          ? ['url', slugFromText(url.replace(/^https?:\/\//, ''))]
+          : ['file', slugFromText(fileName)]
+      )
+        .filter((part) => part !== '')
+        .join('-')
+    },
   })
 
 const partSlug = (part: Part): string | undefined =>
@@ -110,25 +127,20 @@ export const captureSlug = (capture: Capture): string =>
 export const captureKey = (capture: Capture): CaptureKey =>
   `${sourceSlug(capture.source)}--${captureSlug(capture)}-${hashOfText(canonicalJson(encodeCaptureJson(capture)))}`
 
-/** A sheet's file name: the capture key without the size, so one capture at every size shares it (E20). */
+/** A sheet's file name: the capture key without size and mode, so one capture in every size and mode shares it (E20). */
 export type SheetKey = string
 
-/** A capture without its size: the scale follows the size, so it goes too. */
+/** A capture without its size and mode: the scale follows the size, so it goes too. */
 const SheetCapture = Schema.Struct({
   ...Capture.fields,
-  variant: Schema.Struct({ mode: Mode, reducedMotion: Schema.Boolean }),
+  variant: Schema.Struct({ reducedMotion: Schema.Boolean }),
 })
 
 const encodeSheetCaptureJson = Schema.encodeSync(Schema.toCodecJson(SheetCapture))
 
 export const sheetKey = (capture: Capture): SheetKey =>
-  `${sourceSlug(capture.source)}--${slugFromParts([...leadingSlugParts(capture), ...trailingSlugParts(capture)])}-${hashOfText(
-    canonicalJson(
-      encodeSheetCaptureJson({
-        ...capture,
-        variant: { mode: capture.variant.mode, reducedMotion: capture.variant.reducedMotion },
-      }),
-    ),
+  `${sourceSlug(capture.source)}--${slugFromParts([...leadingSlugParts(capture), ...outputSlugs(capture.output)])}-${hashOfText(
+    canonicalJson(encodeSheetCaptureJson({ ...capture, variant: { reducedMotion: capture.variant.reducedMotion } })),
   )}`
 
 /**
@@ -149,12 +161,12 @@ export const captureFileExtension = (output: Output): 'png' | 'json' | 'txt' =>
     AriaTree: () => 'txt' as const,
   })
 
-/** For people: `/path as user`, or the URL. */
+/** For people: `/path as user`, the URL, or a file's name. */
 export const sourceDescription = (source: Source): string =>
   Match.valueTags(source, {
     RouteSource: ({ path, user, params }) =>
       [`${path} as ${user}`, ...Object.entries(params).map(([name, value]) => `${name}=${value}`)].join(' '),
-    UrlSource: ({ url }) => url,
+    UrlSource: ({ url }) => fileNameOfUrl(url) ?? url,
   })
 
 export const partDescription = (part: Part): string =>

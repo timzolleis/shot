@@ -1,5 +1,5 @@
 import { elementsIn, isVisible, ownText, pageRect, px, type Rect, selectorFromElement, unionRect } from './dom.ts'
-import type { RuntimeFinding } from './extension.ts'
+import type { RuntimeFinding } from './types.ts'
 import { measureEdges } from './measure.ts'
 
 const finding = (check: string, severity: RuntimeFinding['severity'], message: string, element: Element, rect?: Rect): RuntimeFinding => ({

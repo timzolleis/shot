@@ -9,20 +9,12 @@ import {
   sides,
   textRuns,
 } from './dom.ts'
-import type { TokenValue, TypeRole } from './extension.ts'
-
-export const tokenFor = (values: ReadonlyArray<TokenValue>, size: number): string | undefined => {
-  const names = values.filter((value) => Math.abs(value.px - size) < 0.5).map((value) => value.name)
-  return names.length === 0 ? undefined : names.join('/')
-}
 
 export interface GapBand {
   /** `vertical`: between stacked siblings; `horizontal`: between siblings side by side. */
   readonly axis: 'vertical' | 'horizontal'
   readonly rect: Rect
   readonly size: number
-  /** The spacing steps whose value equals the gap, when the project names them. */
-  readonly step: string | undefined
   /** Wider than the parent's gap plus the margins: alignment made it, no token owns it. */
   readonly free: boolean
 }
@@ -49,7 +41,7 @@ const declaredGap = (parent: Element, previous: Element, next: Element, axis: Ga
 }
 
 /** Every gap between two neighbouring siblings in `root`, in page coordinates. */
-export const measureGaps = (root: Element, steps: ReadonlyArray<TokenValue>): ReadonlyArray<GapBand> => {
+export const measureGaps = (root: Element): ReadonlyArray<GapBand> => {
   const bands = new Map<string, GapBand>()
   for (const parent of [root, ...root.querySelectorAll('*')]) {
     if (parent.closest('svg') !== null || parent.closest('[data-shot-overlay]') !== null) continue
@@ -62,7 +54,7 @@ export const measureGaps = (root: Element, steps: ReadonlyArray<TokenValue>): Re
       const key = `${axis}:${rect.y}:${rect.x}:${size}`
       if (bands.has(key)) return
       const declared = declaredGap(parent, children[index - 1]!, children[index]!, axis)
-      bands.set(key, { axis, rect, size, step: tokenFor(steps, size), free: size > declared + 0.5 })
+      bands.set(key, { axis, rect, size, free: size > declared + 0.5 })
     }
     for (let index = 1; index < boxes.length; index++) {
       const previous = boxes[index - 1]!
@@ -92,20 +84,13 @@ export interface TypeSample {
   readonly size: number
   readonly lineHeight: number | undefined
   readonly weight: string
-  /** The role whose size and line height match; several joined when only the size matches. */
-  readonly role: string | undefined
-  readonly match: 'exact' | 'size' | 'none' | 'unknown'
 }
 
-export const measureType = (root: Element, roles: ReadonlyArray<TypeRole>): ReadonlyArray<TypeSample> =>
+export const measureType = (root: Element): ReadonlyArray<TypeSample> =>
   textRuns(root).map((run) => {
     const style = getComputedStyle(run.element)
     const size = px(style.fontSize)
     const lineHeight = style.lineHeight === 'normal' ? undefined : px(style.lineHeight)
-    const exact = roles.find(
-      (role) => Math.abs(role.px - size) < 0.5 && lineHeight !== undefined && Math.abs(role.lineHeight - lineHeight) < 0.5,
-    )
-    const bySize = roles.filter((role) => Math.abs(role.px - size) < 0.5)
     return {
       selector: selectorFromElement(run.element),
       text: (run.element.textContent ?? '').trim().slice(0, 40),
@@ -113,8 +98,6 @@ export const measureType = (root: Element, roles: ReadonlyArray<TypeRole>): Read
       size,
       lineHeight,
       weight: style.fontWeight,
-      role: exact?.name ?? (bySize.length > 0 ? bySize.map((role) => role.name).join('/') : undefined),
-      match: roles.length === 0 ? 'unknown' : exact !== undefined ? 'exact' : bySize.length > 0 ? 'size' : 'none',
     }
   })
 

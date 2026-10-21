@@ -8,7 +8,6 @@ import {
   measureType,
   type TypeSample,
 } from './measure.ts'
-import type { TokenValue, TypeRole } from './extension.ts'
 
 export type OverlayKind = 'boxes' | 'gaps' | 'edges' | 'type' | 'grid'
 
@@ -66,15 +65,12 @@ const drawBoxes = (boxes: ReadonlyArray<BoxSample>) => {
   }
 }
 
-/** Gaps labelled with their size and, when the project names spacing steps, the step; off-scale red. */
-const drawGaps = (gaps: ReadonlyArray<GapBand>, hasSteps: boolean) => {
+/** Gaps labelled with their size; free space (alignment, not a gap or margin) grey. */
+const drawGaps = (gaps: ReadonlyArray<GapBand>) => {
   for (const gap of gaps) {
-    const off = hasSteps && !gap.free && gap.step === undefined
-    const color = gap.free ? FREE : off ? OFF : OK
-    const fill = gap.free ? 'rgba(107,114,128,.12)' : off ? 'rgba(220,38,38,.35)' : 'rgba(37,99,235,.2)'
-    draw(gap.rect, `background:${fill}`)
-    const text = `${gap.size}${gap.free ? ' free' : hasSteps ? ` ${gap.step ?? 'off'}` : ''}`
-    label(text, gap.rect.x + gap.rect.width / 2 - 12, gap.rect.y + gap.rect.height / 2 - 6, color)
+    const color = gap.free ? FREE : OK
+    draw(gap.rect, `background:${gap.free ? 'rgba(107,114,128,.12)' : 'rgba(37,99,235,.2)'}`)
+    label(`${gap.size}${gap.free ? ' free' : ''}`, gap.rect.x + gap.rect.width / 2 - 12, gap.rect.y + gap.rect.height / 2 - 6, color)
   }
 }
 
@@ -95,10 +91,8 @@ const drawEdges = (edges: ReturnType<typeof measureEdges>) => {
 
 const drawType = (samples: ReadonlyArray<TypeSample>) => {
   for (const sample of samples) {
-    const color = sample.match === 'exact' || sample.match === 'unknown' ? OK : OFF
-    draw(sample.rect, `outline:1px dashed ${color}88`)
-    const role = sample.match === 'unknown' ? '' : `${sample.role ?? '?'} `
-    label(`${role}${sample.size}/${sample.lineHeight ?? 'normal'} ${sample.weight}`, sample.rect.x, sample.rect.y - 12, color)
+    draw(sample.rect, `outline:1px dashed ${OK}88`)
+    label(`${sample.size}/${sample.lineHeight ?? 'normal'} ${sample.weight}`, sample.rect.x, sample.rect.y - 12, OK)
   }
 }
 
@@ -110,23 +104,19 @@ const drawGrid = (root: Element) => {
 }
 
 /** Draws the overlays on `root` and returns what they measured. Everything is measured before anything is drawn. */
-export const drawOverlays = (
-  kinds: ReadonlyArray<OverlayKind>,
-  root: Element,
-  tokens: { readonly spacingSteps: ReadonlyArray<TokenValue>; readonly typeRoles: ReadonlyArray<TypeRole> },
-): Record<string, unknown> => {
+export const drawOverlays = (kinds: ReadonlyArray<OverlayKind>, root: Element): Record<string, unknown> => {
   const measurements: Record<string, unknown> = {}
   const boxes = kinds.includes('boxes') ? measureBoxes(root) : []
-  const gaps = kinds.includes('gaps') ? measureGaps(root, tokens.spacingSteps) : []
+  const gaps = kinds.includes('gaps') ? measureGaps(root) : []
   const edges = kinds.includes('edges') ? measureEdges(root) : undefined
-  const type = kinds.includes('type') ? measureType(root, tokens.typeRoles) : []
+  const type = kinds.includes('type') ? measureType(root) : []
   if (kinds.includes('grid')) drawGrid(root)
   if (kinds.includes('boxes')) {
     drawBoxes(boxes)
     measurements['boxes'] = boxes
   }
   if (kinds.includes('gaps')) {
-    drawGaps(gaps, tokens.spacingSteps.length > 0)
+    drawGaps(gaps)
     measurements['gaps'] = gaps
   }
   if (edges !== undefined) {

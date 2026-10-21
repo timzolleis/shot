@@ -30,7 +30,7 @@ export const shotLayer = (cwd: string) => {
       loaded.plugins.length === 0 ? Layer.empty : Layer.mergeAll(...(loaded.plugins.map((plugin) => plugin.layer) as [Layer.Layer<any>])),
     ),
   ).pipe(Layer.provide(shotPlatform))
-  const runtime = PageRuntimeLayer.pipe(Layer.provide(config))
+  const runtime = PageRuntimeLayer
   const hooks = AppHooksLayer.pipe(Layer.provide(config))
   const sessions = AppSessionsLayer.pipe(Layer.provide([hooks, shotPlatform]))
   const providers = SourceProvidersLayer.pipe(Layer.provide([hooks, sessions, runtime, shotPlatform]))

@@ -9,12 +9,10 @@ import { AmbiguousSectionError, SectionNotFoundError, SelectionNotFoundError } f
 import { partDescription } from '../capture/domain/capture-key.ts'
 import { sectionFromTitle } from '../capture/domain/capture-plan.ts'
 import type { Finding } from '../capture/domain/finding.ts'
-import { ShotConfig } from '../plugin/shot-config.ts'
 
 export interface OutlineEntry {
   readonly title: string
   readonly depth: number
-  readonly marker: string
 }
 
 /** Where a part is: the page area to screenshot (padded), and the elements overlays, measurements and checks run on. */
@@ -23,11 +21,11 @@ export interface ResolvedPart {
   readonly roots: ReadonlyArray<Locator>
 }
 
-/** Indented by nesting, with the plugin's marker. */
+/** Indented by nesting. */
 export const outlineText = (entries: ReadonlyArray<OutlineEntry>): string =>
-  entries.map((entry) => `${'  '.repeat(entry.depth)}${entry.marker}${entry.title}`).join('\n')
+  entries.map((entry) => `${'  '.repeat(entry.depth)}${entry.title}`).join('\n')
 
-/** The bundled in-page runtime (`@shot/runtime` plus the plugins' runtime modules) and the calls into it. */
+/** The bundled in-page runtime (`@shot/runtime`) and the calls into it. */
 export class PageRuntime extends Context.Service<
   PageRuntime,
   {
@@ -54,15 +52,9 @@ export class PageRuntime extends Context.Service<
 
 const partPadding = 16
 
-const bundleRuntime = (runtimeModules: ReadonlyArray<string>) =>
-  Effect.promise(async () => {
-    const contents = [
-      `import ${JSON.stringify(pageRuntimeEntry)}`,
-      ...runtimeModules.map((file, index) => `import * as m${index} from ${JSON.stringify(file)}`),
-      ...runtimeModules.map((_, index) => `window.__shot.extend(m${index})`),
-    ].join('\n')
+const bundleRuntime = Effect.promise(async () => {
     const result = await build({
-      stdin: { contents, resolveDir: process.cwd(), loader: 'ts' },
+      entryPoints: [pageRuntimeEntry],
       bundle: true,
       format: 'iife',
       write: false,
@@ -70,7 +62,7 @@ const bundleRuntime = (runtimeModules: ReadonlyArray<string>) =>
       logLevel: 'silent',
     })
     return result.outputFiles[0]!.text
-  })
+})
 
 const pageBox = (locator: Locator): Promise<Rect> =>
   locator.evaluate((element) => {
@@ -101,8 +93,7 @@ const findingFromRuntime = (finding: RuntimeFinding): Finding => ({
 export const PageRuntimeLayer = Layer.effect(
   PageRuntime,
   Effect.gen(function* () {
-    const config = yield* ShotConfig
-    const source = yield* bundleRuntime(config.plugins.flatMap((plugin) => plugin.runtimeModules ?? []))
+    const source = yield* bundleRuntime
     let markCount = 0
 
     const readOutline = (page: Page) => Effect.promise(() => page.evaluate(() => window.__shot.outline()))

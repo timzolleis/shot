@@ -1,4 +1,4 @@
-import type { RuntimeSection } from './extension.ts'
+import type { RuntimeSection } from './types.ts'
 
 /**
  * Generic sections: `[data-shot-section]`, `section` and `[role=region]`, titled by `data-shot-section`'s value,

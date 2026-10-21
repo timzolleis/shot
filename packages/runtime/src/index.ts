@@ -1,9 +1,9 @@
-/** Types of the in-page runtime, for the core and for plugins' runtime modules. */
+/** Types of the in-page runtime, for the core. */
 import type { PageRuntime } from './page-runtime.ts'
 
 export type { Rect } from './dom.ts'
-export type { RuntimeExtension, RuntimeFinding, RuntimeSection, TokenValue, TypeRole } from './extension.ts'
 export type { OverlayKind } from './overlays.ts'
+export type { RuntimeFinding, RuntimeSection } from './types.ts'
 export type { PageRuntime }
 
 /** The runtime's entry file, for bundling. */

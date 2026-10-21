@@ -21,7 +21,7 @@ import { AppSessions } from '../../app/app-sessions.ts'
 import { Browser } from '../../infrastructure/browser.ts'
 import type { ReadyPage } from '../../infrastructure/page-lifecycle.ts'
 import { PageRuntime } from '../../infrastructure/page-runtime.ts'
-import { openUrlSource } from '../../infrastructure/url-source-provider.ts'
+import { isFileSourceText, openUrlSource, resolveFileSource } from '../../infrastructure/url-source-provider.ts'
 import { ShotConfig } from '../../plugin/shot-config.ts'
 
 export type ResolveSourceError =
@@ -49,7 +49,7 @@ export interface OpenSourceOptions {
   readonly recordVideoDir: Option.Option<string>
 }
 
-/** URL and app route sources: from raw input to a `Source`, and to a ready page. */
+/** URL, file and app route sources: from raw input to a `Source`, and to a ready page. */
 export class SourceProviders extends Context.Service<
   SourceProviders,
   {
@@ -82,9 +82,14 @@ export const SourceProvidersLayer = Layer.effect(
       resolveSource: ({ raw, as, params }) => {
         if (/^https?:\/\//.test(raw)) return Effect.succeed({ _tag: 'UrlSource' as const, url: raw })
 
+        if (isFileSourceText(raw)) return resolveFileSource({ raw, projectRoot: deps.store.projectRoot })
+
         if (raw.startsWith('/')) return resolveRouteSource({ deps, path: raw, as, params })
 
-        return new SourceNotFoundError({ raw, reason: 'pass a URL (https://…) or an app path (/settings)' })
+        return new SourceNotFoundError({
+          raw,
+          reason: 'pass a URL (https://…), a file (./page.html) or an app path (/settings)',
+        })
       },
       openSource: ({ source, variant, options }) =>
         Match.valueTags(source, {

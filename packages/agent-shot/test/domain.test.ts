@@ -22,7 +22,11 @@ import {
   sizeDescription,
   sizeFromText,
 } from '../src/capture/domain/size.ts'
-import { evidenceReportFromSession, sheetGridFromSheet } from '../src/evidence/domain/evidence-report.ts'
+import {
+  evidenceMarkdownFromReport,
+  evidenceReportFromSession,
+  sheetGridFromSheet,
+} from '../src/evidence/domain/evidence-report.ts'
 import { evidenceEndMarker, evidenceStartMarker, prBodyWithEvidence } from '../src/evidence/domain/pr-body.ts'
 import { megabyte, videoEncodingForBudget } from '../src/evidence/domain/video-budget.ts'
 
@@ -228,7 +232,7 @@ describe('sizes in the plan (17, 18)', () => {
     ).toHaveLength(1)
   })
 
-  it('same capture at phone and desktop → different captureKey, same sheetKey; light and dark → different sheetKey', () => {
+  it('same capture at phone and desktop, light and dark → different captureKey, same sheetKey', () => {
     const [atPhone, atDesktop] = Result.getOrThrow(
       planCapturesFromFlags({ source: persons, flags: { ...defaultShootFlags, sizes: [phone, desktop] } }),
     )
@@ -236,8 +240,8 @@ describe('sizes in the plan (17, 18)', () => {
     expect(captureKey(atPhone!)).toMatch(/^route-app-persons--admin-iphone-15-light-[0-9a-f]{6}$/)
     expect(captureKey(atDesktop!)).toMatch(/^route-app-persons--admin-1440x900-light-[0-9a-f]{6}$/)
     expect(sheetKey(atPhone!)).toBe(sheetKey(atDesktop!))
-    expect(sheetKey(atPhone!)).toMatch(/^route-app-persons--admin-light-[0-9a-f]{6}$/)
-    expect(sheetKey(onlyCapture({ ...defaultShootFlags, modes: ['dark'] }))).not.toBe(
+    expect(sheetKey(atPhone!)).toMatch(/^route-app-persons--admin-[0-9a-f]{6}$/)
+    expect(sheetKey(onlyCapture({ ...defaultShootFlags, modes: ['dark'] }))).toBe(
       sheetKey(onlyCapture(defaultShootFlags)),
     )
   })
@@ -276,9 +280,22 @@ describe('sheets across sizes (20)', () => {
 
   const sessionOf = (labels: Session['labels']): Session => ({ name: 's', dir: '.shots/s', labels })
 
+  /** The first sheet's grid as text: `title ×span` groups, `title (mode)` columns, `label: cell tags` rows. */
+  const gridOf = (report: ReturnType<typeof evidenceReportFromSession>) => {
+    const grid = sheetGridFromSheet(report.sheets[0]!)
+
+    return {
+      groups: grid.groups.map((group) => `${group.title} ×${group.span}`),
+      columns: grid.columns.map((column) =>
+        Option.match(column.mode, { onNone: () => column.title, onSome: (mode) => `${column.title} (${mode})` }),
+      ),
+      rows: grid.rows.map((row) => `${row.label}: ${row.cells.map((cell) => cell._tag).join(' ')}`),
+    }
+  }
+
   const cellTags = (session: Session) =>
     evidenceReportFromSession(session).sheets.map((sheet) => ({
-      sizes: sheet.sizes.map(sizeDescription),
+      sizes: sheet.variants.map((variant) => sizeDescription(variant.size)),
       rows: sheet.rows.map((row) => `${row.label}: ${row.cells.map((cell) => cell._tag).join(' ')}`),
     }))
 
@@ -296,7 +313,11 @@ describe('sheets across sizes (20)', () => {
 
     const report = evidenceReportFromSession(session)
     expect(report.summary.captures).toBe(2)
-    expect(sheetGridFromSheet(report.sheets[0]!).columns).toEqual(['iPhone 15', '1440×900'])
+    expect(gridOf(report)).toEqual({
+      groups: [],
+      columns: ['iPhone 15', '1440×900'],
+      rows: ['before: ShotCell ShotCell', 'after: ShotCell ShotCell'],
+    })
   })
 
   it('before at desktop only, after phone failed → MissingCell and FailedCell', () => {
@@ -320,12 +341,48 @@ describe('sheets across sizes (20)', () => {
       { label: 'after', captures: [captured({ label: 'after', capture: atSize(defaultSize) })], flows: [] },
     ])
 
-    const grid = sheetGridFromSheet(evidenceReportFromSession(session).sheets[0]!)
-    expect(grid.columns).toEqual(['before', 'after'])
-    expect(grid.rows.map((row) => row.label)).toEqual(['1280×900'])
+    expect(gridOf(evidenceReportFromSession(session))).toEqual({
+      groups: [],
+      columns: ['before', 'after'],
+      rows: [': ShotCell ShotCell'],
+    })
   })
 
-  it('light and dark at phone → 2 sheets', () => {
+  it('before and after in light and dark → 1 sheet, rows [before, after], columns [light, dark] (2×2)', () => {
+    const shots = (label: string) =>
+      [atSize(defaultSize), atSize(defaultSize, 'dark')].map((capture) => captured({ label, capture }))
+
+    const session = sessionOf([
+      { label: 'before', captures: shots('before'), flows: [] },
+      { label: 'after', captures: shots('after'), flows: [] },
+    ])
+
+    expect(gridOf(evidenceReportFromSession(session))).toEqual({
+      groups: [],
+      columns: ['light (light)', 'dark (dark)'],
+      rows: ['before: ShotCell ShotCell', 'after: ShotCell ShotCell'],
+    })
+  })
+
+  it('dark before light, desktop before phone → columns narrowest first, light before dark; each size over its modes', () => {
+    const shots = (label: string) =>
+      [atSize(desktop, 'dark'), atSize(phone, 'dark'), atSize(desktop), atSize(phone)].map((capture) =>
+        captured({ label, capture }),
+      )
+
+    const session = sessionOf([
+      { label: 'before', captures: shots('before'), flows: [] },
+      { label: 'after', captures: shots('after'), flows: [] },
+    ])
+
+    expect(gridOf(evidenceReportFromSession(session))).toEqual({
+      groups: ['iPhone 15 ×2', '1440×900 ×2'],
+      columns: ['light (light)', 'dark (dark)', 'light (light)', 'dark (dark)'],
+      rows: ['before: ShotCell ShotCell ShotCell ShotCell', 'after: ShotCell ShotCell ShotCell ShotCell'],
+    })
+  })
+
+  it('one label in light and dark → one row without a label', () => {
     const session = sessionOf([
       {
         label: '',
@@ -334,7 +391,11 @@ describe('sheets across sizes (20)', () => {
       },
     ])
 
-    expect(evidenceReportFromSession(session).sheets).toHaveLength(2)
+    expect(gridOf(evidenceReportFromSession(session))).toEqual({
+      groups: [],
+      columns: ['light (light)', 'dark (dark)'],
+      rows: [': ShotCell ShotCell'],
+    })
   })
 
   it('a 1440×900 still is drawn at scale 1, an iPhone 15 still at 2', () => {
@@ -353,6 +414,48 @@ describe('sheets across sizes (20)', () => {
         Predicate.isTagged(cell, 'ShotCell') ? cell.scale : 0,
       ),
     ).toEqual([2, 1])
+  })
+
+  it('markdown of a clean run → no heading, no counts; a sheet per capture with what its image does not show', () => {
+    const shots = (label: string) =>
+      [atSize(defaultSize), atSize(defaultSize, 'dark')].map((capture) => captured({ label, capture }))
+
+    const session = sessionOf([
+      { label: 'before', captures: shots('before'), flows: [] },
+      { label: 'after', captures: shots('after'), flows: [] },
+    ])
+
+    const report = evidenceReportFromSession(session)
+    expect(evidenceMarkdownFromReport(report)).toBe(
+      `**/app/persons as admin@example.org › page** · 1280×900\n\n![${report.sheets[0]!.key}](${report.sheets[0]!.file})`,
+    )
+  })
+
+  it('markdown with findings → counts first; one still → its label, variant and the failed cell', () => {
+    const capture = atSize(defaultSize, 'dark')
+    const shot = captured({ label: 'after', capture })
+
+    const session = sessionOf([
+      { label: 'before', captures: [failed(capture)], flows: [] },
+      {
+        label: 'after',
+        captures: [
+          {
+            ...shot,
+            findings: [
+              { check: 'axe', severity: 'warn', message: 'low contrast', selector: '#a', rect: Option.none() },
+            ],
+          },
+        ],
+        flows: [],
+      },
+    ])
+
+    expect(evidenceMarkdownFromReport(evidenceReportFromSession(session)).split('\n').slice(0, 3)).toEqual([
+      '0 errors, 1 warning.',
+      '',
+      '**/app/persons as admin@example.org › page** · after · 1280×900, dark · before failed',
+    ])
   })
 })
 

@@ -1,7 +1,10 @@
 import { Effect, Option } from 'effect'
+import { stat } from 'node:fs/promises'
+import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
-import type { UrlSource, Variant } from '../capture/domain/capture.ts'
-import { SourceRenderFailedError, SourceTimedOutError } from '../capture/domain/capture-error.ts'
+import { UrlSource, type Variant } from '../capture/domain/capture.ts'
+import { SourceNotFoundError, SourceRenderFailedError, SourceTimedOutError } from '../capture/domain/capture-error.ts'
 import type { OpenSourceOptions } from '../capture/application/source-providers.ts'
 import type { RouteSourceDeps } from '../app/route-source-provider.ts'
 import {
@@ -16,6 +19,35 @@ import {
 } from './page-lifecycle.ts'
 
 const firstLine = (cause: unknown) => (String(cause).split('\n')[0] ?? '').replace(/^\w+: /, '')
+
+/** `file://…`, `./page.html` or `../page.html`: a local page, shot like a URL. */
+export const isFileSourceText = (raw: string): boolean => /^(file:\/\/|\.\.?\/)/.test(raw)
+
+/**
+ * A local page as a `file://` URL. A relative path resolves against the project root and keeps its query and hash
+ * (`./compare.html?variant=c`); the file must exist.
+ */
+export const resolveFileSource = ({ raw, projectRoot }: { readonly raw: string; readonly projectRoot: string }) =>
+  Effect.gen(function* () {
+    const url = raw.startsWith('file://')
+      ? new URL(raw)
+      : (() => {
+          const [, file = '', rest = ''] = /^([^?#]*)(.*)$/.exec(raw) ?? []
+
+          return new URL(`${pathToFileURL(path.resolve(projectRoot, file)).href}${rest}`)
+        })()
+
+    const isFile = yield* Effect.promise(() =>
+      stat(url).then(
+        (stats) => stats.isFile(),
+        () => false,
+      ),
+    )
+
+    if (!isFile) return yield* new SourceNotFoundError({ raw, reason: 'no such file' })
+
+    return UrlSource.make({ url: url.href })
+  })
 
 /** A URL: load, network quiet, settled. Writes go through: it is not the project's dev data. */
 export const openUrlSource = ({
@@ -49,13 +81,20 @@ export const openUrlSource = ({
     const log = createErrorLog()
     const page = yield* Effect.promise(() => context.newPage())
     collectPageErrors(page, log)
-    const networkQuiet = trackNetwork(page, new URL(source.url).origin)
+    const url = new URL(source.url)
+    // A file URL's origin is the string "null"; its requests start with file://.
+    const networkQuiet = trackNetwork(page, url.protocol === 'file:' ? 'file://' : url.origin)
 
     const response = yield* Effect.tryPromise({
       try: () => page.goto(source.url, { waitUntil: 'load', timeout: renderTimeoutMs }),
       catch: (error) =>
         String(error).includes('Timeout')
-          ? new SourceTimedOutError({ source, waitedMs: renderTimeoutMs, consoleErrors: [...log.errors] })
+          ? new SourceTimedOutError({
+              source,
+              waitedMs: renderTimeoutMs,
+              waitedFor: 'load',
+              consoleErrors: [...log.errors],
+            })
           : new SourceRenderFailedError({ source, reason: `could not load the page (${firstLine(error)})` }),
     })
 

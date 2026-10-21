@@ -6,9 +6,17 @@ import type { CaptureFailure } from './capture-error.ts'
 export const reasonFromCaptureFailure = (error: CaptureFailure): string =>
   Match.valueTags(error, {
     SourceRenderFailedError: ({ reason }) => reason,
-    SourceTimedOutError: ({ waitedMs, consoleErrors }) =>
+    SourceTimedOutError: ({ waitedMs, waitedFor, consoleErrors }) =>
       [
-        `not ready within ${waitedMs / 1000}s`,
+        Match.value(waitedFor).pipe(
+          Match.when(
+            'waitUntilReady',
+            () =>
+              `not ready within ${waitedMs / 1000}s: app.waitUntilReady did not finish; give its waits a timeout under ${waitedMs / 1000}s to see which`,
+          ),
+          Match.when('load', () => `not ready within ${waitedMs / 1000}s: the page did not finish loading`),
+          Match.exhaustive,
+        ),
         ...consoleErrors.slice(0, 3).map((line) => `console: ${line.split('\n')[0]}`),
       ].join('; '),
     SourceRedirectedError: ({ landedOn }) => `redirected to ${landedOn}`,

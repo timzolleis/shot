@@ -4,10 +4,14 @@ import path from 'node:path'
 import { ArtifactStore } from '../artifact/artifact-store.ts'
 import { captureFileFromKey, labelDirFromSession, type SessionLabel, sessionNameFromEnv } from '../artifact/session.ts'
 import { CaptureResult } from '../capture/domain/capture-result.ts'
-import { evidenceMarkdownFromReport, sheetGridFromSheet } from '../evidence/domain/evidence-report.ts'
+import {
+  evidenceMarkdownFromReport,
+  type SheetHeading,
+  sheetGridFromSheet,
+} from '../evidence/domain/evidence-report.ts'
 import { flowKey, FlowResult } from '../flow/domain/flow.ts'
 import { ShotConfig } from '../plugin/shot-config.ts'
-import { type GridCell, Sheets } from './sheets.ts'
+import { type GridCell, type GridHeading, Sheets } from './sheets.ts'
 
 const CaptureResultJson = Schema.fromJsonString(Schema.toCodecJson(CaptureResult))
 const FlowResultJson = Schema.fromJsonString(Schema.toCodecJson(FlowResult))
@@ -175,12 +179,23 @@ export const FileArtifactStoreLayer = Layer.effect(
                   ShotCell: ({ file, scale }) =>
                     fs.readFile(absolutePath(file)).pipe(Effect.map((png): GridCell => ({ png, scale }))),
                   FailedCell: () => Effect.succeed<GridCell>({ note: 'failed' }),
-                  MissingCell: () => Effect.succeed<GridCell>({ note: '—' }),
+                  MissingCell: () => Effect.succeed<GridCell>({ note: 'not shot' }),
                 }),
               ).pipe(Effect.map((cells) => ({ label: row.label, cells }))),
             ).pipe(Effect.orDie)
 
-            const png = yield* sheets.composeGrid({ title: sheet.title, columns: grid.columns, rows })
+            const gridHeading = ({ title, mode, span }: SheetHeading): GridHeading => ({
+              title,
+              mode: Option.getOrUndefined(mode),
+              span,
+            })
+
+            const png = yield* sheets.composeGrid({
+              groups: grid.groups.map(gridHeading),
+              columns: grid.columns.map(gridHeading),
+              rows,
+            })
+
             yield* writeAtomic(absolutePath(sheet.file), png)
           }
 

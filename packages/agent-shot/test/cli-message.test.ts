@@ -11,7 +11,12 @@ const errors: ReadonlyArray<ShotError> = [
   new core.SourceNotFoundError({ raw: 'components-button--board', reason: 'pass a URL or an app path' }),
   new core.UserMissingError({ path: '/app/persons' }),
   new core.SourceRenderFailedError({ source, reason: 'the server answered 500' }),
-  new core.SourceTimedOutError({ source, waitedMs: 20_000, consoleErrors: ['TypeError: x is undefined\n  at y'] }),
+  new core.SourceTimedOutError({
+    source,
+    waitedMs: 20_000,
+    waitedFor: 'waitUntilReady',
+    consoleErrors: ['TypeError: x is undefined\n  at y'],
+  }),
   new core.SourceRedirectedError({ source, landedOn: '/404' }),
   new core.SectionNotFoundError({ title: 'Sizes', outline: 'People\n  Filters' }),
   new core.AmbiguousSectionError({ title: 'Card', matches: ['Card A', 'Card B'] }),
@@ -60,6 +65,14 @@ describe('cliMessageFromShotError', () => {
       line: 'gh 2.96 cannot attach files; update to 2.99 or later',
     },
     { error: new core.NoPullRequestError({ branch: 'feat/x' }), line: 'no pull request for feat/x; create it first' },
+    {
+      error: new core.SourceTimedOutError({ source, waitedMs: 20_000, waitedFor: 'waitUntilReady', consoleErrors: [] }),
+      line: '/app/persons as admin@example.org: not ready within 20s: app.waitUntilReady did not finish; give its waits a timeout under 20s to see which',
+    },
+    {
+      error: new core.SourceTimedOutError({ source, waitedMs: 20_000, waitedFor: 'load', consoleErrors: [] }),
+      line: '/app/persons as admin@example.org: not ready within 20s: the page did not finish loading',
+    },
   ])('$line', ({ error, line }) => {
     expect(cliMessageFromShotError(error)).toBe(line)
   })

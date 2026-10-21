@@ -1,0 +1,13 @@
+{
+  "name": "@shot/github",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "effect": "4.0.5",
+    "@shot/core": "workspace:*"
+  }
+}

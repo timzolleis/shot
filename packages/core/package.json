@@ -1,0 +1,18 @@
+{
+  "name": "@shot/core",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./runtime-types": "./src/runtime-types.ts"
+  },
+  "dependencies": {
+    "effect": "4.0.5",
+    "@effect/platform-node": "4.0.5",
+    "playwright": "1.64.1",
+    "esbuild": "^0.28.2",
+    "pngjs": "^7.0.0",
+    "@shot/runtime": "workspace:*"
+  }
+}

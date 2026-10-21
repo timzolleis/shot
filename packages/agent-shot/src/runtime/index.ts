@@ -5,6 +5,8 @@ export type { Rect } from './dom.ts'
 
 export type { OverlayKind } from './overlays.ts'
 
+export type { RuntimeElement } from './elements.ts'
+
 export type { RuntimeFinding, RuntimeSection } from './types.ts'
 
 export type { PageRuntime }

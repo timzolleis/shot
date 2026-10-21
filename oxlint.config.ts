@@ -51,8 +51,12 @@ export default defineConfig({
   },
   overrides: [
     {
-      // The in-page runtime runs in the browser and has no Effect: its `_tag` results are plain objects.
-      files: ['packages/agent-shot/src/runtime/**'],
+      // The in-page runtime and the review page run in the browser and have no Effect: their `_tag` values are plain objects.
+      files: [
+        'packages/agent-shot/src/runtime/**',
+        'packages/agent-shot/src/review-ui/**',
+        'packages/agent-shot/src/review/marks.ts',
+      ],
       rules: {
         'anti-slop-effect/no-manual-effect-error-tag': 'off',
         'anti-slop-effect/no-manual-tag-comparison': 'off',

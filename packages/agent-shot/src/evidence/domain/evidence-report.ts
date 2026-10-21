@@ -91,7 +91,7 @@ const modeOrder: ReadonlyArray<Mode> = ['light', 'dark']
 const variantName = (variant: SheetVariant): string => `${sizeDescription(variant.size)} ${variant.mode}`
 
 /** Narrowest size first, light before dark (E20). */
-const uniqueVariants = (variants: ReadonlyArray<SheetVariant>): ReadonlyArray<SheetVariant> =>
+export const uniqueVariants = (variants: ReadonlyArray<SheetVariant>): ReadonlyArray<SheetVariant> =>
   variants
     .filter((variant, index) => variants.findIndex((other) => variantName(other) === variantName(variant)) === index)
     .toSorted((a, b) => sizeOrder(a.size, b.size) || modeOrder.indexOf(a.mode) - modeOrder.indexOf(b.mode))
@@ -284,7 +284,7 @@ export const sheetGridFromSheet = (sheet: EvidenceSheet): SheetGrid => {
   }
 }
 
-const variantDescription = (variant: SheetVariant): string => `${sizeDescription(variant.size)}, ${variant.mode}`
+export const variantDescription = (variant: SheetVariant): string => `${sizeDescription(variant.size)}, ${variant.mode}`
 
 const cellNote = (cell: EvidenceCell): Option.Option<string> =>
   Match.valueTags(cell, {

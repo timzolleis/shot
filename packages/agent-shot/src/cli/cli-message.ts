@@ -9,8 +9,10 @@ import {
   type GhCommandFailedError,
   type GhMissingError,
   type GhTooOldError,
+  type LabelNotFoundError,
   type LoupeTooLargeError,
   type NoEvidenceError,
+  type NothingToReviewError,
   type NoPullRequestError,
   type NoPushAccessError,
   type PublisherNotFoundError,
@@ -18,6 +20,8 @@ import {
   reasonFromCaptureFailure,
   type SectionNotFoundError,
   type SelectionNotFoundError,
+  type SheetNotFoundError,
+  type SizeNotShotError,
   type SessionLockTimeoutError,
   type ShotConfigInvalidError,
   type SourceNotFoundError,
@@ -62,6 +66,10 @@ export type ShotError =
   | PublisherNotFoundError
   | PublishFailedError
   | ShotConfigInvalidError
+  | LabelNotFoundError
+  | SheetNotFoundError
+  | SizeNotShotError
+  | NothingToReviewError
 
 const megabytes = (bytes: number) => (bytes / 1024 / 1024).toFixed(1)
 
@@ -104,4 +112,10 @@ export const cliMessageFromShotError = (error: ShotError): string =>
         : `no publisher "${publisher}"; configured: ${available.join(', ')}`,
     PublishFailedError: ({ publisher, message }) => `publisher ${publisher} failed: ${message}`,
     ShotConfigInvalidError: ({ file, reason }) => `${file} failed to load: ${reason}`,
+    LabelNotFoundError: ({ label, labels }) =>
+      `unknown label ${label}; labels: ${labels.length === 0 ? '(none: shoot with --label first)' : labels.join(', ')}`,
+    SheetNotFoundError: ({ sheet, titles }) => `no sheet matches "${sheet}"; sheets: ${titles.join('; ')}`,
+    SizeNotShotError: ({ size, sizes }) => `the labels were not shot at ${size}; sizes: ${sizes.join(', ')}`,
+    NothingToReviewError: ({ labels }) =>
+      `nothing to review: ${labels.length === 0 ? 'name a label besides the base' : `${labels.join(', ')} have no stills`}`,
   })

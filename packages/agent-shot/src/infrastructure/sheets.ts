@@ -39,6 +39,12 @@ export class Sheets extends Context.Service<
       readonly columns: ReadonlyArray<GridHeading>
       readonly rows: ReadonlyArray<{ readonly label: string; readonly cells: ReadonlyArray<GridCell> }>
     }): Effect.Effect<Uint8Array>
+    /** A still with SVG marks in its CSS pixels drawn over it, at the still's own resolution (F32). */
+    burnMarks(input: {
+      readonly png: Uint8Array
+      readonly scale: number
+      readonly svg: string
+    }): Effect.Effect<Uint8Array>
     /** The PNG at `factor`×, nearest-neighbour; from 4× a line per source pixel. */
     loupe(input: { readonly png: Uint8Array; readonly factor: number }): Effect.Effect<Uint8Array, LoupeTooLargeError>
   }
@@ -267,6 +273,32 @@ export const SheetsLayer = Layer.effect(
               return new Uint8Array(await page.locator('#sheet').screenshot())
             }),
           2,
+        ),
+      burnMarks: ({ png, scale, svg }) =>
+        withPage((page) =>
+          Effect.promise(async () => {
+            await page.setContent(
+              '<!doctype html><html><body style="margin:0;background:#fff"><div id="burn" style="position:relative;display:inline-block"></div></body></html>',
+            )
+            await page.evaluate(
+              async ({ src, scale, svg }) => {
+                const image = new Image()
+                await new Promise((resolve) => {
+                  image.onload = resolve
+                  image.src = src
+                })
+                const host = document.querySelector<HTMLElement>('#burn')!
+                const width = image.naturalWidth
+                const height = image.naturalHeight
+                image.style.cssText = `display:block;width:${width}px;height:${height}px`
+                host.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width / scale} ${height / scale}" width="${width}" height="${height}" style="position:absolute;inset:0;overflow:visible">${svg}</svg>`
+                host.prepend(image)
+              },
+              { src: dataUrl(png), scale, svg },
+            )
+
+            return new Uint8Array(await page.locator('#burn').screenshot())
+          }),
         ),
       loupe: ({ png, factor }) =>
         withPage((page) =>

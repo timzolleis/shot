@@ -1,6 +1,6 @@
 ---
 name: shot
-description: Prove UI work with the shot CLI (agent-shot): screenshots of app paths and URLs before and after a change, size and state variants, layout and a11y checks, recorded flows, and evidence on the PR. Use after changing UI, when asked to show, verify or screenshot a page, or to attach visual evidence to a pull request.
+description: Prove UI work with the shot CLI (agent-shot): screenshots of app paths and URLs before and after a change, size and state variants, layout and a11y checks, recorded flows, evidence on the PR, and a local review page where the user compares labels, votes and draws on them. Use after changing UI, when asked to show, verify or screenshot a page, to attach visual evidence to a pull request, or to let the user choose between variants you built.
 ---
 
 # shot
@@ -18,6 +18,28 @@ description: Prove UI work with the shot CLI (agent-shot): screenshots of app pa
 7. `shot publish` writes every capture, flow and finding of the session into the PR body. It replaces the previous publish. Complete when it printed the PR's URL.
 
 Shot does not run git: you stash, it shoots. A dev server with hot reload also serves the stashed state. One that builds once needs a restart.
+
+## Let the user choose
+
+When you built variants (or want the user's eye on a change), shoot each one as a label and put the labels up for review. The user gets a local page with the labels side by side. They vote per sheet, draw comments, boxes, arrows and pen strokes on the stills, and send it back to you.
+
+1. Shoot each candidate with the same flags and its own label. Variants behind a URL param: `shot "/app/persons?variant=quiet" --as admin --label quiet --section People --size phone --size desktop`. Shoot the current state as `--label before` if the user should compare against it.
+2. Read every PNG yourself first. A variant that fails `--check` or looks broken is not a candidate.
+3. Put up exactly what the user should judge. Only the labels you name appear, in your order:
+
+   ```sh
+   shot review quiet editorial dense --base before --ask "Pick a density for People" \
+     --describe quiet="Lowest weight; least memorable" \
+     --describe dense="Most rows per screen; smaller hit areas"
+   ```
+
+   `--sheet <part of a title>` and `--size <size>` narrow it further. `--describe` states each label's direction and cost; never mark a favourite.
+
+4. It opens the browser and blocks until the user sends or closes it, which can take a long time. Run it in the background with a long timeout (or none) and read stdout when it exits. Do not kill it, and do not poll.
+5. Act on what comes back. Exit 0: stdout is the feedback: the pick, per sheet the vote and numbered notes with the element under each (`#invite` button "Invite"), and PNGs with the drawings burned in. Read those PNGs. Exit 1 with `closed without feedback`: the user closed it; ask in chat what they want.
+6. For another round, change the code, reshoot the same labels and run `shot review` again. The last round's drawings show faded.
+
+`shot review` is local and separate from `shot publish`: nothing goes to the PR. Rounds live in `.shots/<session>/review/round-<n>/` (`feedback.md`, `feedback.json`, burned PNGs). `--json` prints `feedback.json`.
 
 ## Examples
 
@@ -112,3 +134,5 @@ export default defineConfig({
 | `no publisher configured`       | add `github()` to `plugins` in `shot.config.ts`                               |
 | `gh … cannot attach files`      | update gh to 2.99 or later                                                    |
 | `no pull request for …`         | push and create the PR first                                                  |
+| `unknown label …`               | shoot that label first, or pick a listed one                                  |
+| `no sheet matches …`            | use part of a listed sheet title                                              |

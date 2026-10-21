@@ -2,12 +2,11 @@
   "name": "shot-workspace",
   "private": true,
   "type": "module",
-  "engines": {
-    "node": ">=24"
-  },
   "scripts": {
     "check": "tsc -b",
     "lint": "oxlint",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "test": "vitest run",
     "shot": "node packages/cli/src/bin.ts"
   },
@@ -16,8 +15,12 @@
     "@oxlint/plugins": "1.89.0",
     "@types/node": "^24",
     "@types/pngjs": "^6.0.5",
+    "oxfmt": "0.74.0",
     "oxlint": "1.89.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

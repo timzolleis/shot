@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Option } from 'effect'
+import { Context, Data, Effect, Layer, Option } from 'effect'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -6,7 +6,7 @@ import type { BrowserContext, Page } from 'playwright'
 
 import type { Mode } from '../capture/domain/capture.ts'
 import { videoLimitBytes } from '../evidence/domain/video-budget.ts'
-import type { Hook } from './hook.ts'
+import { type Hook, messageFromUnknown } from './hook.ts'
 import type { ShotPlugin } from './shot-plugin.ts'
 
 /** Where the project's app runs and how a user logs in (D13). Hooks return a Promise, an Effect or a value. */
@@ -75,17 +75,30 @@ export const findConfigFile = (from: string): Option.Option<string> => {
   }
 }
 
-/** Loads the nearest config above `cwd`. A config that throws on import is a defect: the project must fix it. */
+/** The config throws on import, or exports no object. */
+export class ShotConfigInvalidError extends Data.TaggedError('ShotConfigInvalidError')<{
+  readonly file: string
+  readonly reason: string
+}> {}
+
+/** Loads the nearest config above `cwd`. */
 export const loadShotConfig = (cwd: string) =>
   Effect.gen(function* () {
     const configFile = findConfigFile(cwd)
     const loaded = yield* Option.match(configFile, {
       onNone: () => Effect.succeed<ShotConfigInput>({}),
       onSome: (file) =>
-        Effect.promise(async () => {
-          const module = (await import(pathToFileURL(file).href)) as { default?: ShotConfigInput }
-          return module.default ?? {}
-        }),
+        Effect.tryPromise({
+          try: async () => (await import(pathToFileURL(file).href)) as { default?: unknown },
+          catch: (error) => new ShotConfigInvalidError({ file, reason: messageFromUnknown(error) }),
+        }).pipe(
+          Effect.flatMap((module) =>
+            Effect.gen(function* () {
+              if (typeof module.default === 'object' && module.default !== null) return module.default as ShotConfigInput
+              return yield* new ShotConfigInvalidError({ file, reason: 'the default export is not defineConfig({...})' })
+            }),
+          ),
+        ),
     })
     return ShotConfig.of({
       projectRoot: Option.match(configFile, { onNone: () => cwd, onSome: (file) => path.dirname(file) }),

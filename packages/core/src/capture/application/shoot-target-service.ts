@@ -12,7 +12,10 @@ import {
   variantsFromFlags,
 } from '../domain/capture-plan.ts'
 import type { CaptureResult } from '../domain/capture-result.ts'
-import { CaptureRunner, type RunPlanError } from './capture-runner.ts'
+import { reasonFromCaptureFailure } from '../domain/capture-failure-reason.ts'
+import { captureKey } from '../domain/capture-key.ts'
+import { renderFindingFromReason } from '../domain/finding.ts'
+import { CaptureRunner, isRunPlanError, type RunPlanError } from './capture-runner.ts'
 import { type OpenSourceError, type ResolveSourceError, SourceProviders } from './source-providers.ts'
 
 export interface ShootTargetCommand {
@@ -51,9 +54,29 @@ export const ShootTargetServiceLayer = Layer.effect(
     return ShootTargetService.of({
       shootTarget: Effect.fn('ShootTargetService.shootTarget')(function* ({ raw, as, params, label, flags, runChecks }) {
         const source = yield* providers.resolveSource({ raw, as, params })
-        const plan = isPlanInFlags(flags)
-          ? yield* Effect.fromResult(planCapturesFromFlags({ source, flags }))
-          : planDefaultCaptures({ source, flags, sections: (yield* outlineOf(source, flags)).map((entry) => entry.title) })
+        if (isPlanInFlags(flags)) {
+          const plan = yield* Effect.fromResult(planCapturesFromFlags({ source, flags }))
+          const results = yield* runner.runPlan({ plan, label, runChecks })
+          yield* store.writeManifest({ label, results })
+          return results
+        }
+        const outline = yield* outlineOf(source, flags).pipe(Effect.result)
+        if (outline._tag === 'Failure') {
+          const error = outline.failure
+          if (isRunPlanError(error)) return yield* error
+          // The source did not render: the page capture fails with the reason, not the command (A3).
+          const results = planDefaultCaptures({ source, flags, sections: [] }).map(
+            (capture): CaptureResult => ({
+              _tag: 'FailedCaptureResult',
+              capture,
+              key: captureKey(capture),
+              findings: [renderFindingFromReason(reasonFromCaptureFailure(error))],
+            }),
+          )
+          yield* store.writeManifest({ label, results })
+          return results
+        }
+        const plan = planDefaultCaptures({ source, flags, sections: outline.success.map((entry) => entry.title) })
         const results = yield* runner.runPlan({ plan, label, runChecks })
         yield* store.writeManifest({ label, results })
         return results

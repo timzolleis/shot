@@ -50,7 +50,7 @@ interface Produced {
   readonly findings: ReadonlyArray<Finding>
 }
 
-const isRunError = (error: OpenSourceError): error is RunPlanError =>
+export const isRunPlanError = (error: OpenSourceError): error is RunPlanError =>
   error._tag === 'AppHookMissingError' ||
   error._tag === 'AppHookFailedError' ||
   error._tag === 'AppNotRunningError' ||
@@ -227,7 +227,7 @@ export const CaptureRunnerLayer = Layer.effect(
             .pipe(Effect.result)
           if (opened._tag === 'Failure') {
             const error = opened.failure
-            if (isRunError(error)) return yield* error
+            if (isRunPlanError(error)) return yield* error
             return captures.map((capture) => failedResult(capture, [renderFindingFromReason(reasonFromCaptureFailure(error))]))
           }
           const ready = opened.success

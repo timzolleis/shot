@@ -59,6 +59,10 @@ importers:
       pngjs:
         specifier: ^7.0.0
         version: 7.0.0
+    devDependencies:
+      '@shot/fixture-app':
+        specifier: workspace:*
+        version: link:../../test/fixture-app
 
   packages/runtime: {}
 
@@ -86,7 +90,11 @@ importers:
         specifier: 4.0.5
         version: 4.0.5
 
-  test/fixture-app: {}
+  test/fixture-app:
+    dependencies:
+      '@shot/core':
+        specifier: workspace:*
+        version: link:../../packages/core
 
 packages:
 

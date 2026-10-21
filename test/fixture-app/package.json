@@ -5,5 +5,11 @@
   "type": "module",
   "exports": {
     ".": "./src/server.ts"
+  },
+  "dependencies": {
+    "@shot/core": "workspace:*"
+  },
+  "scripts": {
+    "start": "node src/server.ts"
   }
 }

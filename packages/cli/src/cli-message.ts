@@ -17,6 +17,7 @@ import {
   type SectionNotFoundError,
   type SelectionNotFoundError,
   type SessionLockTimeoutError,
+  type ShotConfigInvalidError,
   type SourceNotFoundError,
   sourceDescription,
   type SourceRedirectedError,
@@ -56,6 +57,7 @@ export type ShotError =
   | NoPullRequestError
   | NoEvidenceError
   | PublisherNotFoundError
+  | ShotConfigInvalidError
 
 const megabytes = (bytes: number) => (bytes / 1024 / 1024).toFixed(1)
 
@@ -94,4 +96,5 @@ export const cliMessageFromShotError = (error: ShotError): string =>
       available.length === 0
         ? 'no publisher configured; add github() from @shot/github to plugins in shot.config.ts'
         : `no publisher "${publisher}"; configured: ${available.join(', ')}`,
+    ShotConfigInvalidError: ({ file, reason }) => `${file} failed to load: ${reason}`,
   })

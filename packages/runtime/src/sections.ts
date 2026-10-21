@@ -33,7 +33,11 @@ const sectionTitle = (element: Element): string => {
   return accessibleName(element) || ownHeading(element)
 }
 
+/** Rendered: hidden dialogs and collapsed panels are not sections to shoot. */
+const isRendered = (element: Element) => element.getClientRects().length > 0
+
 export const genericSectionsIn = (root: Document): ReadonlyArray<RuntimeSection> =>
   Array.from(root.body.querySelectorAll(candidateSelector))
+    .filter(isRendered)
     .map((element) => ({ element, title: sectionTitle(element) }))
     .filter((section) => section.title !== '')

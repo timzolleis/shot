@@ -1,4 +1,4 @@
-export { defineConfig, ShotConfig } from './plugin/shot-config.ts'
+export { defineConfig, ShotConfig, ShotConfigInvalidError } from './plugin/shot-config.ts'
 export type { AppConfig, Determinism, ShotConfigInput } from './plugin/shot-config.ts'
 export { defineFlow } from './flow/application/define-flow.ts'
 export type { FlowBody, FlowDefinition, FlowHeader, FlowStep } from './flow/application/define-flow.ts'

@@ -1,6 +1,6 @@
 {
   "name": "@agent-shot/axe",
-  "version": "0.1.0-beta.0",
+  "version": "0.1.0-beta.1",
   "description": "agent-shot plugin: axe-core accessibility check.",
   "repository": {
     "type": "git",

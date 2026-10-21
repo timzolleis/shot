@@ -1,6 +1,5 @@
-import { axe } from '@shot/axe'
-import { defineConfig } from '@shot/core'
-import { github } from '@shot/github'
+import { axe } from '@agent-shot/axe'
+import { defineConfig, github } from 'agent-shot'
 
 /** The fixture app's config: what a project writes, without Effect. */
 export default defineConfig({

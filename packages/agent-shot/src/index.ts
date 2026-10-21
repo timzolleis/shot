@@ -79,3 +79,5 @@ export { RecordFlowService } from './flow/application/record-flow-service.ts'
 export { PublishEvidenceService } from './evidence/application/publish-evidence-service.ts'
 
 export { LogInService } from './app/log-in-service.ts'
+
+export { github } from './github/github-publisher.ts'

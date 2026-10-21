@@ -1,4 +1,4 @@
-import { Click, Fill, Focus, Hover, Key, Press, type Step, Wait } from '@shot/core'
+import { Click, Fill, Focus, Hover, Key, Press, type Step, Wait } from '../index.ts'
 import { Schema } from 'effect'
 
 /** `<css>=<text>`, split at the last "=": the selector may hold one (`[name=email]=a@b.c`), the text may not. */

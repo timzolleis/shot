@@ -1,5 +1,5 @@
 import { NodeRuntime } from '@effect/platform-node'
-import { shotLayer } from '@shot/core'
+import { shotLayer } from '../index.ts'
 import { Cause, Effect } from 'effect'
 import { CliError, Command } from 'effect/cli'
 

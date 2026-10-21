@@ -1,5 +1,5 @@
-import type { RuntimeFinding } from '@shot/runtime'
-import { pageRuntimeEntry } from '@shot/runtime'
+import type { RuntimeFinding } from '../runtime/index.ts'
+import { pageRuntimeEntry } from '../runtime/index.ts'
 import { Context, Effect, Layer, Match, Option, Schema } from 'effect'
 import { build } from 'esbuild'
 import type { Locator, Page } from 'playwright'
@@ -25,7 +25,7 @@ export interface ResolvedPart {
 export const outlineText = (entries: ReadonlyArray<OutlineEntry>): string =>
   entries.map((entry) => `${'  '.repeat(entry.depth)}${entry.title}`).join('\n')
 
-/** The bundled in-page runtime (`@shot/runtime`) and the calls into it. */
+/** The bundled in-page runtime (`src/runtime`) and the calls into it. */
 export class PageRuntime extends Context.Service<
   PageRuntime,
   {

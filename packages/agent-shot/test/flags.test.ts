@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@effect/vitest'
 
-import { Click, Fill, Key, Wait } from '@shot/core'
+import { Click, Fill, Key, Wait } from '../src/index.ts'
 
-import { stepsFromArgv } from '../src/flags.ts'
+import { stepsFromArgv } from '../src/cli/flags.ts'
 
 describe('stepsFromArgv', () => {
   it('keeps command-line order across step flags; other flags and their values are skipped', () => {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from '@effect/vitest'
-import * as core from '@shot/core'
+import * as core from '../src/index.ts'
 import { Option } from 'effect'
 
-import { cliMessageFromShotError, type ShotError } from '../src/cli-message.ts'
+import { cliMessageFromShotError, type ShotError } from '../src/cli/cli-message.ts'
 
 const source = core.RouteSource.make({ path: '/app/persons', user: 'admin@example.org', params: {} })
 

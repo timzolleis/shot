@@ -16,7 +16,7 @@ import {
   sizeAliases,
   sizeFromText,
   playwrightDevices,
-} from '@shot/core'
+} from '../index.ts'
 import { Effect, Option, Predicate, Schema } from 'effect'
 import { Argument, CliError, Command, Flag } from 'effect/cli'
 import { readFileSync } from 'node:fs'
@@ -326,14 +326,16 @@ const clean = Command.make(
     }),
 ).pipe(Command.withDescription("Delete this session's files (--all: every session; login defaults stay)."))
 
-// `src/` and `dist/` both sit one level below the package root.
-const skillFile = new URL('../../../skill/SKILL.md', import.meta.url)
+// `src/cli/` and `dist/cli/` both sit two levels below the package root.
+const skillFile = new URL('../../skill/SKILL.md', import.meta.url)
 
 const skill = Command.make('skill', {}, () => printLine(readFileSync(skillFile, 'utf8').trimEnd())).pipe(
   Command.withDescription('Print the agent instructions.'),
 )
 
-const packageJson: { version: string } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+const packageJson: { version: string } = JSON.parse(
+  readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
+)
 
 export const cliVersion = packageJson.version
 

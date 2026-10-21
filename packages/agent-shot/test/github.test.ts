@@ -6,13 +6,13 @@ import {
   type EvidenceReport,
   type ProcessOutput,
   ShotCell,
-} from '@shot/core'
+} from '../src/index.ts'
 import { Effect, Layer } from 'effect'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { GhCli, publishEvidenceToPr } from '../src/index.ts'
+import { GhCli, publishEvidenceToPr } from '../src/github/github-publisher.ts'
 
 const report: EvidenceReport = {
   session: 's',

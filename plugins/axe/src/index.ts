@@ -1,4 +1,4 @@
-import type { CaptureCheck, Finding, ShotPlugin } from '@shot/core'
+import type { CaptureCheck, Finding, ShotPlugin } from 'agent-shot'
 import type AxeCore from 'axe-core'
 import { Effect, Layer, Option, Predicate } from 'effect'
 import { readFileSync } from 'node:fs'

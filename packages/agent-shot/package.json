@@ -1,0 +1,48 @@
+{
+  "name": "agent-shot",
+  "version": "0.0.0",
+  "description": "Agents prove UI work: shoot what changed before and after, run checks, record flows, attach the evidence to the PR.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/timzolleis/shot.git",
+    "directory": "packages/agent-shot"
+  },
+  "bin": {
+    "shot": "./src/cli/bin.ts"
+  },
+  "files": [
+    "dist",
+    "src",
+    "skill"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "publishConfig": {
+    "bin": {
+      "shot": "./dist/cli/bin.js"
+    },
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "access": "public"
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.0.5",
+    "effect": "4.0.5",
+    "esbuild": "^0.28.2",
+    "ffmpeg-static": "^5.3.0",
+    "playwright": "1.64.1",
+    "pngjs": "^7.0.0"
+  },
+  "devDependencies": {
+    "@agent-shot/fixture-app": "workspace:*"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

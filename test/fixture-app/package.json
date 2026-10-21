@@ -1,5 +1,5 @@
 {
-  "name": "@shot/fixture-app",
+  "name": "@agent-shot/fixture-app",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,7 @@
     "start": "node src/server.ts"
   },
   "dependencies": {
-    "@shot/axe": "workspace:*",
-    "@shot/core": "workspace:*",
-    "@shot/github": "workspace:*"
+    "@agent-shot/axe": "workspace:*",
+    "agent-shot": "workspace:*"
   }
 }

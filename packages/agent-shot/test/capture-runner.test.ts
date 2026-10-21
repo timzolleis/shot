@@ -1,4 +1,4 @@
-import { startFixtureApp } from '@shot/fixture-app'
+import { startFixtureApp } from '@agent-shot/fixture-app'
 import { afterAll, beforeAll, describe, expect, it } from '@effect/vitest'
 import { Effect, ManagedRuntime, Option, Predicate } from 'effect'
 import { execFile } from 'node:child_process'
@@ -21,7 +21,7 @@ import {
 /** Adapter cases against the fixture app: a real browser, real files under test/fixture-app/.shots/. */
 
 const fixtureDir = path.resolve(import.meta.dirname, '../../../test/fixture-app')
-const bin = path.resolve(import.meta.dirname, '../../cli/src/bin.ts')
+const bin = path.resolve(import.meta.dirname, '../src/cli/bin.ts')
 let server: Server
 let appUrl: string
 const makeRuntime = () => ManagedRuntime.make(shotLayer(fixtureDir))

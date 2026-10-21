@@ -28,7 +28,7 @@ import {
   type UnknownSizeError,
   type UserMissingError,
   type VideoTooLargeError,
-} from '@shot/core'
+} from '../index.ts'
 import { Match, Option } from 'effect'
 
 /** Every domain error a command can end with. */
@@ -98,7 +98,7 @@ export const cliMessageFromShotError = (error: ShotError): string =>
     NoEvidenceError: ({ session }) => `nothing to publish in session ${session}; shoot or record a flow first`,
     PublisherNotFoundError: ({ publisher, available }) =>
       available.length === 0
-        ? 'no publisher configured; add github() from @shot/github to plugins in shot.config.ts'
+        ? 'no publisher configured; add github() from agent-shot to plugins in shot.config.ts'
         : `no publisher "${publisher}"; configured: ${available.join(', ')}`,
     ShotConfigInvalidError: ({ file, reason }) => `${file} failed to load: ${reason}`,
   })

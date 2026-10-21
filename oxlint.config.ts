@@ -52,7 +52,7 @@ export default defineConfig({
   overrides: [
     {
       // The in-page runtime runs in the browser and has no Effect: its `_tag` results are plain objects.
-      files: ['packages/runtime/**'],
+      files: ['packages/agent-shot/src/runtime/**'],
       rules: {
         'anti-slop-effect/no-manual-effect-error-tag': 'off',
         'anti-slop-effect/no-manual-tag-comparison': 'off',

@@ -1,4 +1,4 @@
-import { defineFlow } from '@shot/core'
+import { defineFlow } from 'agent-shot'
 
 export default defineFlow({ start: '/app/persons', as: 'admin' }, async ({ page, step }) => {
   await step('open invite', () => page.locator('#invite').click())

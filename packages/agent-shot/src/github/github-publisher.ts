@@ -1,21 +1,20 @@
+import { Context, Effect, Layer, Schema } from 'effect'
+import { ChildProcessSpawner } from 'effect/process'
+import { mkdir, writeFile } from 'node:fs/promises'
+import path from 'node:path'
+
+import { ArtifactStore } from '../artifact/artifact-store.ts'
 import {
-  ArtifactStore,
-  evidenceFilesFromReport,
-  evidenceMarkdownFromReport,
   GhCommandFailedError,
   GhMissingError,
   GhTooOldError,
   NoPullRequestError,
   NoPushAccessError,
-  type ProcessOutput,
-  prBodyWithEvidence,
-  runProcess,
-  type ShotPlugin,
-} from '@shot/core'
-import { Context, Effect, Layer, Schema } from 'effect'
-import { ChildProcessSpawner } from 'effect/process'
-import { mkdir, writeFile } from 'node:fs/promises'
-import path from 'node:path'
+} from '../evidence/domain/evidence-error.ts'
+import { evidenceFilesFromReport, evidenceMarkdownFromReport } from '../evidence/domain/evidence-report.ts'
+import { prBodyWithEvidence } from '../evidence/domain/pr-body.ts'
+import { type ProcessOutput, runProcess } from '../infrastructure/run-process.ts'
+import type { ShotPlugin } from '../plugin/shot-plugin.ts'
 
 /** `gh` in the project's directory. */
 export class GhCli extends Context.Service<

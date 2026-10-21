@@ -9,8 +9,11 @@ export type { RuntimeFinding, RuntimeSection } from './types.ts'
 
 export type { PageRuntime }
 
-/** The runtime's entry file, for bundling. */
-export const pageRuntimeEntry = new URL('./page-runtime.ts', import.meta.url).pathname
+/** The runtime's entry file, for bundling: `page-runtime.ts` from source, `page-runtime.js` when built. */
+export const pageRuntimeEntry = new URL(
+  import.meta.url.endsWith('.ts') ? './page-runtime.ts' : './page-runtime.js',
+  import.meta.url,
+).pathname
 
 declare global {
   interface Window {

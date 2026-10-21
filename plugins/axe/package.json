@@ -1,15 +1,40 @@
 {
-  "name": "@shot/axe",
-  "version": "0.1.0",
-  "private": false,
+  "name": "@agent-shot/axe",
+  "version": "0.0.0",
+  "description": "agent-shot plugin: axe-core accessibility check.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/timzolleis/shot.git",
+    "directory": "plugins/axe"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "access": "public"
+  },
   "dependencies": {
-    "@shot/core": "workspace:*",
     "axe-core": "^4.14.0",
-    "effect": "4.0.5",
-    "playwright": "1.64.1"
+    "effect": "4.0.5"
+  },
+  "devDependencies": {
+    "agent-shot": "workspace:*"
+  },
+  "peerDependencies": {
+    "agent-shot": "workspace:^"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

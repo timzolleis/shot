@@ -5,7 +5,7 @@ import {
   hasErrorFinding,
   partDescription,
   sourceDescription,
-} from '@shot/core'
+} from '../index.ts'
 import { Console, Effect, Option, Predicate } from 'effect'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'

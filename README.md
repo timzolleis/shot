@@ -28,10 +28,14 @@ warn  target   /settings as admin@example.org › Profile: touch target 67×40, 
 
 ## Install
 
+Shot is in beta. Install the `beta` tag:
+
 ```sh
-npm i -D agent-shot
+npm i -D agent-shot@beta
 npx playwright install chromium
 ```
+
+For the axe accessibility check, also add `npm i -D @agent-shot/axe@beta`.
 
 You need Node ≥ 24. `shot publish` needs [`gh`](https://cli.github.com) ≥ 2.99. Videos are encoded with a bundled ffmpeg.
 

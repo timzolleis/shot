@@ -1,4 +1,5 @@
 import { checkAlign, checkOverflow, checkTargets } from './checks.ts'
+import { pageElements } from './elements.ts'
 import { measureElements } from './measure.ts'
 import { clearOverlays, drawOverlays } from './overlays.ts'
 import { genericSectionsIn } from './sections.ts'
@@ -70,6 +71,7 @@ const runtime = {
   clearOverlay: clearOverlays,
   measure: measureElements,
   check: runChecks,
+  elements: pageElements,
 }
 
 export type PageRuntime = typeof runtime

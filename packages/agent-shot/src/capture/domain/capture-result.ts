@@ -1,7 +1,20 @@
 import { Schema } from 'effect'
 
-import { Capture } from './capture.ts'
+import { Capture, Rect } from './capture.ts'
 import { Finding } from './finding.ts'
+
+/**
+ * An element a still shows, for naming what a review note points at (F34). `selector` is one `--select` accepts; `rect`
+ * is in the still's CSS pixels, from its top-left.
+ */
+export const PageElement = Schema.Struct({
+  selector: Schema.String,
+  role: Schema.String,
+  name: Schema.String,
+  rect: Rect,
+})
+
+export type PageElement = typeof PageElement.Type
 
 /** A capture that produced a file; `file` is relative to the project root. */
 export const CapturedResult = Schema.TaggedStruct('CapturedResult', {
@@ -10,6 +23,8 @@ export const CapturedResult = Schema.TaggedStruct('CapturedResult', {
   file: Schema.String,
   measurements: Schema.Json,
   findings: Schema.Array(Finding),
+  /** Stills only; manifests written before the element map have none. */
+  elements: Schema.optionalKey(Schema.Array(PageElement)),
 })
 
 export type CapturedResult = typeof CapturedResult.Type

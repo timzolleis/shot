@@ -24,7 +24,7 @@ import {
   partDescription,
   sourceDescription,
 } from '../domain/capture-key.ts'
-import { CapturedResult, type CaptureResult, FailedCaptureResult } from '../domain/capture-result.ts'
+import { CapturedResult, type CaptureResult, FailedCaptureResult, type PageElement } from '../domain/capture-result.ts'
 import { sizeDescription } from '../domain/size.ts'
 import {
   collapsedFindings,
@@ -61,6 +61,7 @@ interface Produced {
   readonly content: Uint8Array | string
   readonly measurements: Schema.Json
   readonly findings: ReadonlyArray<Finding>
+  readonly elements: ReadonlyArray<PageElement>
 }
 
 export const isRunPlanError = (error: OpenSourceError): error is RunPlanError =>
@@ -119,7 +120,15 @@ export const CaptureRunnerLayer = Layer.effect(
           onSome: (factor) => sheets.loupe({ png: new Uint8Array(screenshot), factor }),
         })
 
-        return { content: png, measurements, findings } satisfies Produced
+        // A loupe is not in page pixels: it gets no element map.
+        const elements = Option.isSome(output.loupe)
+          ? []
+          : yield* runtime.readPageElements({
+              roots: resolved.roots,
+              origin: Option.getOrElse(resolved.clip, () => ({ x: 0, y: 0 })),
+            })
+
+        return { content: png, measurements, findings, elements } satisfies Produced
       })
 
     /**
@@ -238,7 +247,7 @@ export const CaptureRunnerLayer = Layer.effect(
           frames: taken.list.map(({ ms }, index) => ({ index: index + 1, ms })),
         }
 
-        return { content: sheet, measurements, findings: [] } satisfies Produced
+        return { content: sheet, measurements, findings: [], elements: [] } satisfies Produced
       })
 
     const produce = (ready: ReadyPage, capture: Capture, runChecks: boolean) =>
@@ -258,7 +267,12 @@ export const CaptureRunnerLayer = Layer.effect(
               const resolved = yield* runtime.resolvePart({ page: ready.page, part: capture.part, all })
               const data = yield* runtime.measureElements({ roots: resolved.roots, styles })
 
-              return { content: JSON.stringify(data, null, 2), measurements: data, findings: [] } satisfies Produced
+              return {
+                content: JSON.stringify(data, null, 2),
+                measurements: data,
+                findings: [],
+                elements: [],
+              } satisfies Produced
             }),
           AriaTree: () =>
             Effect.gen(function* () {
@@ -268,7 +282,12 @@ export const CaptureRunnerLayer = Layer.effect(
                 Promise.all(resolved.roots.map((root) => root.ariaSnapshot())),
               )
 
-              return { content: `${snapshots.join('\n\n')}\n`, measurements: null, findings: [] } satisfies Produced
+              return {
+                content: `${snapshots.join('\n\n')}\n`,
+                measurements: null,
+                findings: [],
+                elements: [],
+              } satisfies Produced
             }),
         })
       })
@@ -335,7 +354,7 @@ export const CaptureRunnerLayer = Layer.effect(
               }
 
               const extension = captureFileExtension(capture.output)
-              const { content, measurements, findings } = produced.success
+              const { content, measurements, findings, elements } = produced.success
               const file = yield* store.writeCaptureFile({ label, key, extension, content, measurements })
 
               if (content instanceof Uint8Array) {
@@ -358,6 +377,7 @@ export const CaptureRunnerLayer = Layer.effect(
                   index === 0
                     ? collapsedFindings([...consoleFindingsFromErrors(ready.consoleErrors), ...findings])
                     : findings,
+                elements,
               })
             }),
           )

@@ -5,6 +5,7 @@ import { build } from 'esbuild'
 import type { Locator, Page } from 'playwright'
 
 import type { Overlay, Part, Rect, Selected } from '../capture/domain/capture.ts'
+import type { PageElement } from '../capture/domain/capture-result.ts'
 import { AmbiguousSectionError, SectionNotFoundError, SelectionNotFoundError } from '../capture/domain/capture-error.ts'
 import { partDescription } from '../capture/domain/capture-key.ts'
 import { sectionFromTitle } from '../capture/domain/capture-plan.ts'
@@ -49,6 +50,11 @@ export class PageRuntime extends Context.Service<
       readonly roots: ReadonlyArray<Locator>
       readonly checks: ReadonlyArray<string>
     }): Effect.Effect<ReadonlyArray<RuntimeFinding>>
+    /** The element map of a still whose top-left is `origin` in page coordinates (F34). */
+    readPageElements(input: {
+      readonly roots: ReadonlyArray<Locator>
+      readonly origin: { readonly x: number; readonly y: number }
+    }): Effect.Effect<ReadonlyArray<PageElement>>
   }
 >()('shot/PageRuntime') {}
 
@@ -249,6 +255,33 @@ export const PageRuntimeLayer = Layer.effect(
             )
           ).flat(),
         ),
+      readPageElements: ({ roots, origin }) =>
+        Effect.promise(async () => {
+          const found = (
+            await Promise.all(roots.map((root) => root.evaluate((element) => window.__shot.elements(element))))
+          ).flat()
+
+          const seen = new Set<string>()
+
+          return found.flatMap((element): ReadonlyArray<PageElement> => {
+            if (seen.has(element.selector)) return []
+            seen.add(element.selector)
+
+            return [
+              {
+                selector: element.selector,
+                role: element.role,
+                name: element.name,
+                rect: {
+                  x: Math.round((element.rect.x - origin.x) * 100) / 100,
+                  y: Math.round((element.rect.y - origin.y) * 100) / 100,
+                  width: element.rect.width,
+                  height: element.rect.height,
+                },
+              },
+            ]
+          })
+        }),
     })
   }),
 )

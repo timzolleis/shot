@@ -46,8 +46,18 @@ describe('cliMessageFromShotError', () => {
   })
 
   it.each([
-    { error: new core.AppHookFailedError({ hook: 'logIn', user: Option.some('admin@example.org'), message: 'no account' }), line: 'logIn hook failed for admin@example.org: no account' },
-    { error: new core.GhTooOldError({ version: '2.96' }), line: 'gh 2.96 cannot attach files; update to 2.99 or later' },
+    {
+      error: new core.AppHookFailedError({
+        hook: 'logIn',
+        user: Option.some('admin@example.org'),
+        message: 'no account',
+      }),
+      line: 'logIn hook failed for admin@example.org: no account',
+    },
+    {
+      error: new core.GhTooOldError({ version: '2.96' }),
+      line: 'gh 2.96 cannot attach files; update to 2.99 or later',
+    },
     { error: new core.NoPullRequestError({ branch: 'feat/x' }), line: 'no pull request for feat/x; create it first' },
   ])('$line', ({ error, line }) => {
     expect(cliMessageFromShotError(error)).toBe(line)

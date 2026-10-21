@@ -39,7 +39,10 @@ const markSection = (
   title: string,
   nth: number | undefined,
   mark: string,
-): { readonly _tag: 'Marked' } | { readonly _tag: 'NotFound' } | { readonly _tag: 'Ambiguous'; readonly matches: ReadonlyArray<string> } => {
+):
+  | { readonly _tag: 'Marked' }
+  | { readonly _tag: 'NotFound' }
+  | { readonly _tag: 'Ambiguous'; readonly matches: ReadonlyArray<string> } => {
   const needle = title.toLowerCase()
   const found = genericSectionsIn(document)
   const exact = found.filter((section) => section.title.toLowerCase() === needle)
@@ -52,7 +55,9 @@ const markSection = (
     return { _tag: 'Marked' }
   }
 
-  return chosen.length > 1 ? { _tag: 'Ambiguous', matches: chosen.map((section) => section.title) } : { _tag: 'NotFound' }
+  return chosen.length > 1
+    ? { _tag: 'Ambiguous', matches: chosen.map((section) => section.title) }
+    : { _tag: 'NotFound' }
 }
 
 const runChecks = (names: ReadonlyArray<string>, root: Element): ReadonlyArray<RuntimeFinding> =>

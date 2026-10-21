@@ -18,8 +18,13 @@ export interface Session {
 export const labelDisplayName = (label: string): string => (label === '' ? 'shot' : label)
 
 /** `.shots/<session>/[<label>/]`: a label picks the directory, not the key (A6). */
-export const labelDirFromSession = ({ sessionDir, label }: { readonly sessionDir: string; readonly label: string }): string =>
-  label === '' ? sessionDir : `${sessionDir}/${label}`
+export const labelDirFromSession = ({
+  sessionDir,
+  label,
+}: {
+  readonly sessionDir: string
+  readonly label: string
+}): string => (label === '' ? sessionDir : `${sessionDir}/${label}`)
 
 export const captureFileFromKey = (input: {
   readonly sessionDir: string

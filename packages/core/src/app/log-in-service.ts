@@ -1,7 +1,12 @@
 import { Context, Effect, Layer, Option } from 'effect'
 
 import { ArtifactStore } from '../artifact/artifact-store.ts'
-import type { AppHookFailedError, AppHookMissingError, AppNotRunningError, SessionLockTimeoutError } from './app-error.ts'
+import type {
+  AppHookFailedError,
+  AppHookMissingError,
+  AppNotRunningError,
+  SessionLockTimeoutError,
+} from './app-error.ts'
 import { AppHooks } from './app-hooks.ts'
 import { AppSessions } from './app-sessions.ts'
 import { userFromAlias } from './app-user.ts'
@@ -24,7 +29,10 @@ export class LogInService extends Context.Service<
     /** Removes cached sessions on the app's host, for one user or all. */
     logOut(command: {
       readonly as: Option.Option<string>
-    }): Effect.Effect<{ readonly host: string; readonly removed: number }, AppHookMissingError | AppHookFailedError | AppNotRunningError>
+    }): Effect.Effect<
+      { readonly host: string; readonly removed: number },
+      AppHookMissingError | AppHookFailedError | AppNotRunningError
+    >
   }
 >()('shot/LogInService') {}
 

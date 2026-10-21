@@ -46,7 +46,12 @@ export interface EvidenceReport {
   readonly sheets: ReadonlyArray<EvidenceSheet>
   readonly flows: ReadonlyArray<EvidenceFlow>
   readonly findings: ReadonlyArray<EvidenceFindings>
-  readonly summary: { readonly captures: number; readonly flows: number; readonly errors: number; readonly warnings: number }
+  readonly summary: {
+    readonly captures: number
+    readonly flows: number
+    readonly errors: number
+    readonly warnings: number
+  }
 }
 
 /** Composed sheets live next to the report. */
@@ -58,7 +63,9 @@ export const evidenceReportFromSession = (session: Session): EvidenceReport => {
   const keys = [
     ...new Set(
       session.labels.flatMap((entry) =>
-        entry.captures.filter((result) => Predicate.isTagged(result.capture.output, 'Still')).map((result) => result.key),
+        entry.captures
+          .filter((result) => Predicate.isTagged(result.capture.output, 'Still'))
+          .map((result) => result.key),
       ),
     ),
   ]
@@ -69,16 +76,14 @@ export const evidenceReportFromSession = (session: Session): EvidenceReport => {
 
     const columns = session.labels
       .filter((entry) => entry.captures.some((result) => result.key === key))
-      .map(
-        (entry): SheetColumn => {
-          const result = entry.captures.find((candidate) => candidate.key === key)
+      .map((entry): SheetColumn => {
+        const result = entry.captures.find((candidate) => candidate.key === key)
 
-          return {
-            label: entry.label,
-            still: result?._tag === 'CapturedResult' ? Option.some(result.file) : Option.none(),
-          }
-        },
-      )
+        return {
+          label: entry.label,
+          still: result?._tag === 'CapturedResult' ? Option.some(result.file) : Option.none(),
+        }
+      })
 
     const stills = columns.flatMap((column) => Option.toArray(column.still))
 
@@ -95,51 +100,47 @@ export const evidenceReportFromSession = (session: Session): EvidenceReport => {
   })
 
   const flows = session.labels.flatMap((entry) =>
-    entry.flows.map(
-      (flow): EvidenceFlow => ({
-        label: entry.label,
-        name: flow.flow.name,
-        video: flow.video,
-        stills: flow.stills,
-        stoppedAt: Match.valueTags(flow, {
-          StoppedFlow: ({ failedStep, reason }) => Option.some({ step: failedStep, reason }),
-          CompletedFlow: () => Option.none(),
-        }),
+    entry.flows.map((flow): EvidenceFlow => ({
+      label: entry.label,
+      name: flow.flow.name,
+      video: flow.video,
+      stills: flow.stills,
+      stoppedAt: Match.valueTags(flow, {
+        StoppedFlow: ({ failedStep, reason }) => Option.some({ step: failedStep, reason }),
+        CompletedFlow: () => Option.none(),
       }),
-    ),
+    })),
   )
 
   const findings = session.labels
-    .map(
-      (entry): EvidenceFindings => ({
-        label: entry.label,
-        findings: [
-          ...entry.captures.flatMap((result) =>
-            result.findings.map((finding) => ({
-              subject: `${sourceDescription(result.capture.source)} › ${partDescription(result.capture.part)} (${result.capture.variant.mode})`,
-              finding,
-            })),
-          ),
-          ...entry.flows.flatMap((flow) =>
-            Match.valueTags(flow, {
-              StoppedFlow: ({ failedStep, reason }) => [
-                {
-                  subject: `flow ${flow.flow.name}`,
-                  finding: {
-                    check: 'flow',
-                    severity: 'error' as const,
-                    message: `step ${failedStep}: ${reason}`,
-                    selector: '',
-                    rect: Option.none(),
-                  },
+    .map((entry): EvidenceFindings => ({
+      label: entry.label,
+      findings: [
+        ...entry.captures.flatMap((result) =>
+          result.findings.map((finding) => ({
+            subject: `${sourceDescription(result.capture.source)} › ${partDescription(result.capture.part)} (${result.capture.variant.mode})`,
+            finding,
+          })),
+        ),
+        ...entry.flows.flatMap((flow) =>
+          Match.valueTags(flow, {
+            StoppedFlow: ({ failedStep, reason }) => [
+              {
+                subject: `flow ${flow.flow.name}`,
+                finding: {
+                  check: 'flow',
+                  severity: 'error' as const,
+                  message: `step ${failedStep}: ${reason}`,
+                  selector: '',
+                  rect: Option.none(),
                 },
-              ],
-              CompletedFlow: () => [],
-            }),
-          ),
-        ],
-      }),
-    )
+              },
+            ],
+            CompletedFlow: () => [],
+          }),
+        ),
+      ],
+    }))
     .filter((group) => group.findings.length > 0)
 
   const all = findings.flatMap((group) => group.findings)

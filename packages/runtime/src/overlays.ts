@@ -75,7 +75,11 @@ const drawBoxes = (boxes: ReadonlyArray<BoxSample>) => {
 
     if (pl > 0) draw({ ...inner, y: inner.y + pt, width: pl, height: inner.height - pt - pb }, padding)
 
-    if (pr > 0) draw({ ...inner, x: inner.x + inner.width - pr, y: inner.y + pt, width: pr, height: inner.height - pt - pb }, padding)
+    if (pr > 0)
+      draw(
+        { ...inner, x: inner.x + inner.width - pr, y: inner.y + pt, width: pr, height: inner.height - pt - pb },
+        padding,
+      )
     draw(box.rect, `outline:1px solid ${OK}99;outline-offset:-1px`)
   }
 
@@ -89,13 +93,19 @@ const drawGaps = (gaps: ReadonlyArray<GapBand>) => {
   for (const gap of gaps) {
     const color = gap.free ? FREE : OK
     draw(gap.rect, `background:${gap.free ? 'rgba(107,114,128,.12)' : 'rgba(37,99,235,.2)'}`)
-    label(`${gap.size}${gap.free ? ' free' : ''}`, gap.rect.x + gap.rect.width / 2 - 12, gap.rect.y + gap.rect.height / 2 - 6, color)
+    label(
+      `${gap.size}${gap.free ? ' free' : ''}`,
+      gap.rect.x + gap.rect.width / 2 - 12,
+      gap.rect.y + gap.rect.height / 2 - 6,
+      color,
+    )
   }
 }
 
 const drawEdges = (edges: ReturnType<typeof measureEdges>) => {
   for (const guide of edges.guides) {
-    if (guide.axis === 'x') draw({ x: guide.at, y: guide.from, width: 1, height: guide.to - guide.from }, `background:${GUIDE}aa`)
+    if (guide.axis === 'x')
+      draw({ x: guide.at, y: guide.from, width: 1, height: guide.to - guide.from }, `background:${GUIDE}aa`)
     else draw({ x: guide.from, y: guide.at, width: guide.to - guide.from, height: 1 }, `background:${GUIDE}aa`)
   }
 
@@ -103,7 +113,8 @@ const drawEdges = (edges: ReturnType<typeof measureEdges>) => {
     const span = unionRect(miss.rects)
 
     for (const at of miss.at) {
-      if (miss.edge === 'left' || miss.edge === 'right') draw({ x: at, y: span.y, width: 1, height: span.height }, `background:${OFF}`)
+      if (miss.edge === 'left' || miss.edge === 'right')
+        draw({ x: at, y: span.y, width: 1, height: span.height }, `background:${OFF}`)
       else draw({ x: span.x, y: at, width: span.width, height: 1 }, `background:${OFF}`)
     }
 

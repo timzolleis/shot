@@ -2,7 +2,13 @@ import { elementsIn, isVisible, ownText, pageRect, px, type Rect, selectorFromEl
 import type { RuntimeFinding } from './types.ts'
 import { measureEdges } from './measure.ts'
 
-const finding = (check: string, severity: RuntimeFinding['severity'], message: string, element: Element, rect?: Rect): RuntimeFinding => ({
+const finding = (
+  check: string,
+  severity: RuntimeFinding['severity'],
+  message: string,
+  element: Element,
+  rect?: Rect,
+): RuntimeFinding => ({
   check,
   severity,
   message,
@@ -18,9 +24,12 @@ export const checkOverflow = (root: Element): ReadonlyArray<RuntimeFinding> =>
     if (style.display === 'inline') return []
     const excessX = element.scrollWidth - element.clientWidth
     const excessY = element.scrollHeight - element.clientHeight
-    const truncated = style.textOverflow === 'ellipsis' || (style.webkitLineClamp !== 'none' && style.webkitLineClamp !== '')
 
-    if (style.overflowX === 'visible' && excessX > 1) return [finding('overflow', 'warn', `text overflows its box by ${excessX}px`, element)]
+    const truncated =
+      style.textOverflow === 'ellipsis' || (style.webkitLineClamp !== 'none' && style.webkitLineClamp !== '')
+
+    if (style.overflowX === 'visible' && excessX > 1)
+      return [finding('overflow', 'warn', `text overflows its box by ${excessX}px`, element)]
 
     if ((style.overflowX === 'hidden' || style.overflowX === 'clip') && excessX > 1 && !truncated) {
       return [finding('overflow', 'warn', `text clipped by ${excessX}px without an ellipsis`, element)]
@@ -63,14 +72,19 @@ export const checkTargets = (root: Element): ReadonlyArray<RuntimeFinding> => {
 
   return candidates.flatMap((element) => {
     const own = hitSize(element)
-    const labelElement = element.closest('label') ?? (element.id ? document.querySelector(`label[for="${element.id}"]`) : null)
+
+    const labelElement =
+      element.closest('label') ?? (element.id ? document.querySelector(`label[for="${element.id}"]`) : null)
+
     const labelled = labelElement === null ? own : hitSize(labelElement)
     const width = Math.round(Math.max(own.width, labelled.width))
     const height = Math.round(Math.max(own.height, labelled.height))
 
-    if (width < 24 || height < 24) return [finding('target', 'error', `touch target ${width}×${height}, under 24×24`, element)]
+    if (width < 24 || height < 24)
+      return [finding('target', 'error', `touch target ${width}×${height}, under 24×24`, element)]
 
-    if (width < 44 || height < 44) return [finding('target', 'warn', `touch target ${width}×${height}, under 44×44`, element)]
+    if (width < 44 || height < 44)
+      return [finding('target', 'warn', `touch target ${width}×${height}, under 44×44`, element)]
 
     return []
   })

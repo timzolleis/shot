@@ -7,12 +7,16 @@ import { Capture, type Output, type Part, Source, Step, Variant } from './captur
 export type CaptureKey = string
 
 const encodeCaptureJson = Schema.encodeSync(Schema.toCodecJson(Capture))
-const encodeGroupJson = Schema.encodeSync(Schema.toCodecJson(Schema.Struct({ source: Source, variant: Variant, scene: Schema.Array(Step) })))
+
+const encodeGroupJson = Schema.encodeSync(
+  Schema.toCodecJson(Schema.Struct({ source: Source, variant: Variant, scene: Schema.Array(Step) })),
+)
 
 const isJsonArray = (value: Schema.JsonArray | Schema.JsonObject): value is Schema.JsonArray => Array.isArray(value)
 
 const sortedJson = (value: Schema.Json): Schema.Json => {
-  if (value === null || Predicate.isString(value) || Predicate.isNumber(value) || Predicate.isBoolean(value)) return value
+  if (value === null || Predicate.isString(value) || Predicate.isNumber(value) || Predicate.isBoolean(value))
+    return value
 
   if (isJsonArray(value)) return value.map(sortedJson)
 
@@ -26,7 +30,8 @@ const sortedJson = (value: Schema.Json): Schema.Json => {
 /** JSON with sorted keys: equal values give equal strings. */
 export const canonicalJson = (value: Schema.Json): string => JSON.stringify(sortedJson(value))
 
-const hashOfText = (text: string, length = 6): string => createHash('sha256').update(text).digest('hex').slice(0, length)
+const hashOfText = (text: string, length = 6): string =>
+  createHash('sha256').update(text).digest('hex').slice(0, length)
 
 export const slugFromText = (text: string): string =>
   text
@@ -41,7 +46,8 @@ export const slugFromText = (text: string): string =>
 export const sourceSlug = (source: Source): string =>
   Match.valueTags(source, {
     RouteSource: ({ path }) => ['route', slugFromText(path)].filter((part) => part !== '').join('-'),
-    UrlSource: ({ url }) => ['url', slugFromText(url.replace(/^https?:\/\//, ''))].filter((part) => part !== '').join('-'),
+    UrlSource: ({ url }) =>
+      ['url', slugFromText(url.replace(/^https?:\/\//, ''))].filter((part) => part !== '').join('-'),
   })
 
 const partSlug = (part: Part): string | undefined =>
@@ -49,7 +55,10 @@ const partSlug = (part: Part): string | undefined =>
     WholePage: () => undefined,
     Viewport: () => 'viewport',
     Section: ({ title, nth }) =>
-      Option.match(nth, { onNone: () => slugFromText(title), onSome: (index) => `${slugFromText(title)}-${index + 1}` }),
+      Option.match(nth, {
+        onNone: () => slugFromText(title),
+        onSome: (index) => `${slugFromText(title)}-${index + 1}`,
+      }),
     Selected: ({ within }) => [...Option.toArray(Option.map(within, slugFromText)), 'select'].join('-'),
   })
 
@@ -118,7 +127,8 @@ export const partDescription = (part: Part): string =>
   Match.valueTags(part, {
     WholePage: () => 'page',
     Viewport: () => 'viewport',
-    Section: ({ title, nth }) => Option.match(nth, { onNone: () => title, onSome: (index) => `${title} >> nth=${index}` }),
+    Section: ({ title, nth }) =>
+      Option.match(nth, { onNone: () => title, onSome: (index) => `${title} >> nth=${index}` }),
     Selected: ({ selector, within }) =>
       Option.match(within, { onNone: () => selector, onSome: (title) => `${title} › ${selector}` }),
   })

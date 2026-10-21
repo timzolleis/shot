@@ -37,7 +37,10 @@ export class PageRuntime extends Context.Service<
       readonly part: Part
       readonly all: boolean
     }): Effect.Effect<ResolvedPart, SectionNotFoundError | AmbiguousSectionError | SelectionNotFoundError>
-    drawOverlays(input: { readonly roots: ReadonlyArray<Locator>; readonly overlays: ReadonlyArray<Overlay> }): Effect.Effect<Schema.Json>
+    drawOverlays(input: {
+      readonly roots: ReadonlyArray<Locator>
+      readonly overlays: ReadonlyArray<Overlay>
+    }): Effect.Effect<Schema.Json>
     clearOverlays(page: Page): Effect.Effect<void>
     measureElements(input: {
       readonly roots: ReadonlyArray<Locator>
@@ -56,16 +59,16 @@ const partPadding = 16
 const decodePageJson = Schema.decodeUnknownEffect(Schema.Json)
 
 const bundleRuntime = Effect.promise(async () => {
-    const result = await build({
-      entryPoints: [pageRuntimeEntry],
-      bundle: true,
-      format: 'iife',
-      write: false,
-      target: 'chrome120',
-      logLevel: 'silent',
-    })
+  const result = await build({
+    entryPoints: [pageRuntimeEntry],
+    bundle: true,
+    format: 'iife',
+    write: false,
+    target: 'chrome120',
+    logLevel: 'silent',
+  })
 
-    return result.outputFiles[0]!.text
+  return result.outputFiles[0]!.text
 })
 
 const pageBox = (locator: Locator): Promise<Rect> =>
@@ -135,7 +138,15 @@ export const PageRuntimeLayer = Layer.effect(
         })
       })
 
-    const resolveSelected = ({ page, part, all }: { readonly page: Page; readonly part: Selected; readonly all: boolean }) =>
+    const resolveSelected = ({
+      page,
+      part,
+      all,
+    }: {
+      readonly page: Page
+      readonly part: Selected
+      readonly all: boolean
+    }) =>
       Effect.gen(function* () {
         const scopes: ReadonlyArray<Locator> = yield* Option.match(part.within, {
           onNone: () => Effect.succeed([]),
@@ -153,7 +164,10 @@ export const PageRuntimeLayer = Layer.effect(
           Effect.tryPromise({
             try: count,
             catch: (error) =>
-              new SelectionNotFoundError({ selector: part.selector, reason: (String(error).split('\n')[0] ?? '').replace(/^[\w.]+: /, '') }),
+              new SelectionNotFoundError({
+                selector: part.selector,
+                reason: (String(error).split('\n')[0] ?? '').replace(/^[\w.]+: /, ''),
+              }),
           })
 
         const counts = yield* countMatches(() => Promise.all(scoped.map((root) => root.count())))
@@ -171,14 +185,20 @@ export const PageRuntimeLayer = Layer.effect(
         yield* Effect.promise(() => first.waitFor({ state: 'attached', timeout: 2000 }).catch(() => undefined))
 
         if ((yield* countMatches(() => roots[0]!.count())) === 0) {
-          return yield* new SelectionNotFoundError({ selector: part.selector, reason: 'no element matches (waited 2s)' })
+          return yield* new SelectionNotFoundError({
+            selector: part.selector,
+            reason: 'no element matches (waited 2s)',
+          })
         }
 
         yield* Effect.promise(() => first.scrollIntoViewIfNeeded().catch(() => undefined))
         const rects = yield* Effect.promise(() => Promise.all(roots.map((root) => pageBox(root.first()))))
 
         if (rects.every((rect) => rect.width === 0 || rect.height === 0)) {
-          return yield* new SelectionNotFoundError({ selector: part.selector, reason: `not visible (${partDescription(part)})` })
+          return yield* new SelectionNotFoundError({
+            selector: part.selector,
+            reason: `not visible (${partDescription(part)})`,
+          })
         }
 
         return { clip: Option.some(yield* Effect.promise(() => paddedClip(page, rects))), roots }
@@ -189,7 +209,12 @@ export const PageRuntimeLayer = Layer.effect(
         WholePage: () => Effect.succeed<ResolvedPart>({ clip: Option.none(), roots: [page.locator('body')] }),
         Viewport: () =>
           Effect.promise(() =>
-            page.evaluate(() => ({ x: window.scrollX, y: window.scrollY, width: window.innerWidth, height: window.innerHeight })),
+            page.evaluate(() => ({
+              x: window.scrollX,
+              y: window.scrollY,
+              width: window.innerWidth,
+              height: window.innerHeight,
+            })),
           ).pipe(Effect.map((clip): ResolvedPart => ({ clip: Option.some(clip), roots: [page.locator('body')] }))),
         Section: (section) =>
           Effect.gen(function* () {
@@ -213,7 +238,8 @@ export const PageRuntimeLayer = Layer.effect(
 
           return measured.length === 1 ? measured[0] : measured
         }).pipe(Effect.flatMap(decodePageJson), Effect.orDie),
-      clearOverlays: (page) => Effect.promise(() => page.evaluate(() => window.__shot.clearOverlay())).pipe(Effect.asVoid),
+      clearOverlays: (page) =>
+        Effect.promise(() => page.evaluate(() => window.__shot.clearOverlay())).pipe(Effect.asVoid),
       measureElements: ({ roots, styles }) =>
         Effect.promise(async () =>
           (
@@ -226,7 +252,11 @@ export const PageRuntimeLayer = Layer.effect(
         ).pipe(Effect.flatMap(decodePageJson), Effect.orDie),
       runRuntimeChecks: ({ roots, checks }) =>
         Effect.promise(async () =>
-          (await Promise.all(roots.map((root) => root.evaluate((element, names) => window.__shot.check(names, element), checks))))
+          (
+            await Promise.all(
+              roots.map((root) => root.evaluate((element, names) => window.__shot.check(names, element), checks)),
+            )
+          )
             .flat()
             .map(findingFromRuntime),
         ),

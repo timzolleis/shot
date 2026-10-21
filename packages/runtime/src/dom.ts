@@ -11,7 +11,12 @@ export const round = (value: number) => Math.round(value * 100) / 100
 
 export const pageRect = (rect: DOMRect | Rect): Rect =>
   rect instanceof DOMRect
-    ? { x: round(rect.left + scrollX), y: round(rect.top + scrollY), width: round(rect.width), height: round(rect.height) }
+    ? {
+        x: round(rect.left + scrollX),
+        y: round(rect.top + scrollY),
+        width: round(rect.width),
+        height: round(rect.height),
+      }
     : rect
 
 export const unionRect = (rects: ReadonlyArray<Rect>): Rect => {

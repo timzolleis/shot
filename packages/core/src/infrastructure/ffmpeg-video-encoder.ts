@@ -25,7 +25,15 @@ const ffmpegBinary = (): string => {
   }
 }
 
-const ffmpegArgs = ({ recording, output, encoding }: { recording: string; output: string; encoding: VideoEncoding }) => [
+const ffmpegArgs = ({
+  recording,
+  output,
+  encoding,
+}: {
+  recording: string
+  output: string
+  encoding: VideoEncoding
+}) => [
   '-y',
   '-loglevel',
   'error',
@@ -64,13 +72,25 @@ export const FfmpegVideoEncoderLayer = Layer.effect(
       })
 
     return VideoEncoder.of({
-      encodeVideo: Effect.fn('VideoEncoder.encodeVideo')(function* ({ recording, output, durationMs, width, height, limitBytes }) {
+      encodeVideo: Effect.fn('VideoEncoder.encodeVideo')(function* ({
+        recording,
+        output,
+        durationMs,
+        width,
+        height,
+        limitBytes,
+      }) {
         const native = { width, bitrate: undefined }
         const bytes = yield* encode({ recording, output, encoding: native })
-        const encoding = yield* Effect.fromResult(videoEncodingForBudget({ file: output, durationMs, width, height, bytes, limitBytes }))
+
+        const encoding = yield* Effect.fromResult(
+          videoEncodingForBudget({ file: output, durationMs, width, height, bytes, limitBytes }),
+        )
 
         if (encoding.bitrate === undefined) return { file: output, bytes, width }
-        process.stderr.write(`video: ${(bytes / 1024 / 1024).toFixed(1)} MB at ${width} wide; re-encoding at ${encoding.width} wide\n`)
+        process.stderr.write(
+          `video: ${(bytes / 1024 / 1024).toFixed(1)} MB at ${width} wide; re-encoding at ${encoding.width} wide\n`,
+        )
         const reencoded = yield* encode({ recording, output, encoding })
 
         if (reencoded > limitBytes) return yield* new VideoTooLargeError({ file: output, bytes: reencoded, limitBytes })

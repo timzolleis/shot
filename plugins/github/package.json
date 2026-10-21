@@ -7,8 +7,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "effect": "4.0.5",
-    "@shot/core": "workspace:*"
+    "@shot/core": "workspace:*",
+    "effect": "4.0.5"
   },
   "devDependencies": {}
 }

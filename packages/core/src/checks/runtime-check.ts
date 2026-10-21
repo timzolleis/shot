@@ -16,5 +16,6 @@ export const runtimeCaptureCheck = ({
 }): CaptureCheck<PageRuntime> => ({
   check,
   appliesTo,
-  runCheck: ({ roots }) => Effect.flatMap(PageRuntime, (runtime) => runtime.runRuntimeChecks({ roots, checks: [check] })),
+  runCheck: ({ roots }) =>
+    Effect.flatMap(PageRuntime, (runtime) => runtime.runRuntimeChecks({ roots, checks: [check] })),
 })

@@ -33,11 +33,17 @@ export class ShootTargetService extends Context.Service<
   {
     shootTarget(
       command: ShootTargetCommand,
-    ): Effect.Effect<ReadonlyArray<CaptureResult>, ResolveSourceError | ConflictingOutputsError | OpenSourceError | RunPlanError>
+    ): Effect.Effect<
+      ReadonlyArray<CaptureResult>,
+      ResolveSourceError | ConflictingOutputsError | OpenSourceError | RunPlanError
+    >
     /** The source's sections, for `--section`. */
     readTargetOutline(
       command: Pick<ShootTargetCommand, 'raw' | 'as' | 'params' | 'flags'>,
-    ): Effect.Effect<{ readonly source: Source; readonly outline: ReadonlyArray<OutlineEntry> }, ResolveSourceError | OpenSourceError>
+    ): Effect.Effect<
+      { readonly source: Source; readonly outline: ReadonlyArray<OutlineEntry> },
+      ResolveSourceError | OpenSourceError
+    >
   }
 >()('shot/ShootTargetService') {}
 
@@ -52,7 +58,14 @@ export const ShootTargetServiceLayer = Layer.effect(
       runner.readOutline({ source, variant: { ...variantsFromFlags(flags)[0]!, mode: 'light' } })
 
     return ShootTargetService.of({
-      shootTarget: Effect.fn('ShootTargetService.shootTarget')(function* ({ raw, as, params, label, flags, runChecks }) {
+      shootTarget: Effect.fn('ShootTargetService.shootTarget')(function* ({
+        raw,
+        as,
+        params,
+        label,
+        flags,
+        runChecks,
+      }) {
         const source = yield* providers.resolveSource({ raw, as, params })
 
         if (isPlanInFlags(flags)) {
@@ -71,13 +84,12 @@ export const ShootTargetServiceLayer = Layer.effect(
           if (isRunPlanError(error)) return yield* error
 
           // The source did not render: the page capture fails with the reason, not the command (A3).
-          const results = planDefaultCaptures({ source, flags, sections: [] }).map(
-            (capture): CaptureResult =>
-              FailedCaptureResult.make({
-                capture,
-                key: captureKey(capture),
-                findings: [renderFindingFromReason(reasonFromCaptureFailure(error))],
-              }),
+          const results = planDefaultCaptures({ source, flags, sections: [] }).map((capture): CaptureResult =>
+            FailedCaptureResult.make({
+              capture,
+              key: captureKey(capture),
+              findings: [renderFindingFromReason(reasonFromCaptureFailure(error))],
+            }),
           )
 
           yield* store.writeManifest({ label, results })

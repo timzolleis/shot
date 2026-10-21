@@ -1,7 +1,12 @@
 import { Context, Effect, Layer, Match, Option, Predicate, Result, type Schema } from 'effect'
 import type { Locator } from 'playwright'
 
-import type { AppHookFailedError, AppHookMissingError, AppNotRunningError, SessionLockTimeoutError } from '../../app/app-error.ts'
+import type {
+  AppHookFailedError,
+  AppHookMissingError,
+  AppNotRunningError,
+  SessionLockTimeoutError,
+} from '../../app/app-error.ts'
 import { ArtifactStore } from '../../artifact/artifact-store.ts'
 import { CaptureChecks } from '../../checks/capture-checks.ts'
 import { fitContent, type ReadyPage, runStep, settlePage } from '../../infrastructure/page-lifecycle.ts'
@@ -20,7 +25,12 @@ import {
   sourceDescription,
 } from '../domain/capture-key.ts'
 import { CapturedResult, type CaptureResult, FailedCaptureResult } from '../domain/capture-result.ts'
-import { collapsedFindings, consoleFindingsFromErrors, type Finding, renderFindingFromReason } from '../domain/finding.ts'
+import {
+  collapsedFindings,
+  consoleFindingsFromErrors,
+  type Finding,
+  renderFindingFromReason,
+} from '../domain/finding.ts'
 import { type OpenSourceError, SourceProviders } from './source-providers.ts'
 
 /** Errors that end the whole run, not one capture: the app or its hooks. */
@@ -36,7 +46,10 @@ export class CaptureRunner extends Context.Service<
       readonly runChecks: boolean
     }): Effect.Effect<ReadonlyArray<CaptureResult>, RunPlanError>
     /** Loads the source once and reads its sections. */
-    readOutline(input: { readonly source: Source; readonly variant: Variant }): Effect.Effect<ReadonlyArray<OutlineEntry>, OpenSourceError>
+    readOutline(input: {
+      readonly source: Source
+      readonly variant: Variant
+    }): Effect.Effect<ReadonlyArray<OutlineEntry>, OpenSourceError>
   }
 >()('shot/CaptureRunner') {}
 
@@ -68,10 +81,15 @@ export const CaptureRunnerLayer = Layer.effect(
       Effect.gen(function* () {
         const { page } = ready
         const resolved = yield* runtime.resolvePart({ page, part: capture.part, all: false })
-        const findings = runChecks ? yield* checks.runCaptureChecks({ page: ready, capture, roots: resolved.roots }) : []
+
+        const findings = runChecks
+          ? yield* checks.runCaptureChecks({ page: ready, capture, roots: resolved.roots })
+          : []
 
         const measurements =
-          output.overlays.length === 0 ? null : yield* runtime.drawOverlays({ roots: resolved.roots, overlays: output.overlays })
+          output.overlays.length === 0
+            ? null
+            : yield* runtime.drawOverlays({ roots: resolved.roots, overlays: output.overlays })
 
         // Infinite animations cancel to their start: CSS and WAAPI through Playwright, SVG SMIL paused at 0 here.
         yield* Effect.promise(() =>
@@ -114,7 +132,8 @@ export const CaptureRunnerLayer = Layer.effect(
         const part = capture.part
 
         const locator: Locator | undefined = yield* Match.valueTags(part, {
-          Section: (section) => runtime.resolvePart({ page, part: section, all: false }).pipe(Effect.map(({ roots }) => roots[0])),
+          Section: (section) =>
+            runtime.resolvePart({ page, part: section, all: false }).pipe(Effect.map(({ roots }) => roots[0])),
           Selected: ({ selector }) => Effect.succeed(page.locator(selector).filter({ visible: true }).first()),
           WholePage: () => Effect.succeed(undefined),
           Viewport: () => Effect.succeed(undefined),
@@ -150,7 +169,9 @@ export const CaptureRunnerLayer = Layer.effect(
               // No waiting: a part that is not there yet is simply not in this frame.
               locator === undefined
                 ? undefined
-                : locator.count().then((found) => (found === 0 ? null : locator.boundingBox({ timeout: 200 }).catch(() => null))),
+                : locator
+                    .count()
+                    .then((found) => (found === 0 ? null : locator.boundingBox({ timeout: 200 }).catch(() => null))),
             ])
 
             list.push({ png: new Uint8Array(png), ms })
@@ -180,8 +201,10 @@ export const CaptureRunnerLayer = Layer.effect(
                 rect: {
                   x: Math.min(...rects.map((rect) => rect.x)),
                   y: Math.min(...rects.map((rect) => rect.y)),
-                  width: Math.max(...rects.map((rect) => rect.x + rect.width)) - Math.min(...rects.map((rect) => rect.x)),
-                  height: Math.max(...rects.map((rect) => rect.y + rect.height)) - Math.min(...rects.map((rect) => rect.y)),
+                  width:
+                    Math.max(...rects.map((rect) => rect.x + rect.width)) - Math.min(...rects.map((rect) => rect.x)),
+                  height:
+                    Math.max(...rects.map((rect) => rect.y + rect.height)) - Math.min(...rects.map((rect) => rect.y)),
                 },
                 bounds: viewport,
               })
@@ -194,7 +217,12 @@ export const CaptureRunnerLayer = Layer.effect(
               ? png
               : cropPng({
                   png,
-                  rect: { x: area.x * scale, y: area.y * scale, width: area.width * scale, height: area.height * scale },
+                  rect: {
+                    x: area.x * scale,
+                    y: area.y * scale,
+                    width: area.width * scale,
+                    height: area.height * scale,
+                  },
                 }),
           label: `${index + 1} · ${ms}ms`,
         }))
@@ -204,7 +232,10 @@ export const CaptureRunnerLayer = Layer.effect(
           title: `${sourceDescription(capture.source)} ${captureSlug(capture)} (every ${everyMs}ms, slow ${slow})`,
         })
 
-        const measurements = { area: area ?? null, frames: taken.list.map(({ ms }, index) => ({ index: index + 1, ms })) }
+        const measurements = {
+          area: area ?? null,
+          frames: taken.list.map(({ ms }, index) => ({ index: index + 1, ms })),
+        }
 
         return { content: sheet, measurements, findings: [] } satisfies Produced
       })
@@ -212,7 +243,10 @@ export const CaptureRunnerLayer = Layer.effect(
     const produce = (ready: ReadyPage, capture: Capture, runChecks: boolean) =>
       Effect.gen(function* () {
         // Apps that scroll inside a shell: grow the viewport to the content, except for a viewport shot or frames.
-        yield* fitContent({ page: ready.page, expand: !Predicate.isTagged(capture.part, 'Viewport') && !Predicate.isTagged(capture.output, 'Frames') })
+        yield* fitContent({
+          page: ready.page,
+          expand: !Predicate.isTagged(capture.part, 'Viewport') && !Predicate.isTagged(capture.output, 'Frames'),
+        })
         const output = capture.output
 
         return yield* Match.valueTags(output, {
@@ -228,7 +262,10 @@ export const CaptureRunnerLayer = Layer.effect(
           AriaTree: () =>
             Effect.gen(function* () {
               const resolved = yield* runtime.resolvePart({ page: ready.page, part: capture.part, all: false })
-              const snapshots = yield* Effect.promise(() => Promise.all(resolved.roots.map((root) => root.ariaSnapshot())))
+
+              const snapshots = yield* Effect.promise(() =>
+                Promise.all(resolved.roots.map((root) => root.ariaSnapshot())),
+              )
 
               return { content: `${snapshots.join('\n\n')}\n`, measurements: null, findings: [] } satisfies Produced
             }),
@@ -248,7 +285,11 @@ export const CaptureRunnerLayer = Layer.effect(
             .openSource({
               source: first.source,
               variant: first.variant,
-              options: { settle: !isFrames || first.scene.length > 1, slowClock: isFrames, recordVideoDir: Option.none() },
+              options: {
+                settle: !isFrames || first.scene.length > 1,
+                slowClock: isFrames,
+                recordVideoDir: Option.none(),
+              },
             })
             .pipe(Effect.result)
 
@@ -257,7 +298,9 @@ export const CaptureRunnerLayer = Layer.effect(
 
             if (isRunPlanError(error)) return yield* error
 
-            return captures.map((capture) => failedResult(capture, [renderFindingFromReason(reasonFromCaptureFailure(error))]))
+            return captures.map((capture) =>
+              failedResult(capture, [renderFindingFromReason(reasonFromCaptureFailure(error))]),
+            )
           }
 
           const ready = opened.success
@@ -298,7 +341,9 @@ export const CaptureRunnerLayer = Layer.effect(
                 const { width, height } = pngSize(content)
 
                 if (height > tallWarningPx) {
-                  process.stderr.write(`warning: ${file} is ${width}×${height}px; reads downscale it. Shoot a --section or --select.\n`)
+                  process.stderr.write(
+                    `warning: ${file} is ${width}×${height}px; reads downscale it. Shoot a --section or --select.\n`,
+                  )
                 }
               }
 
@@ -308,7 +353,10 @@ export const CaptureRunnerLayer = Layer.effect(
                 file,
                 measurements,
                 // Console errors belong to the page load: reported once, on its first capture.
-                findings: index === 0 ? collapsedFindings([...consoleFindingsFromErrors(ready.consoleErrors), ...findings]) : findings,
+                findings:
+                  index === 0
+                    ? collapsedFindings([...consoleFindingsFromErrors(ready.consoleErrors), ...findings])
+                    : findings,
               })
             }),
           )
@@ -335,7 +383,9 @@ export const CaptureRunnerLayer = Layer.effect(
                   done++
 
                   if (groups.size > 1) {
-                    process.stderr.write(`[${done}/${groups.size}] ${sourceDescription(group[0]!.source)} ${group[0]!.variant.mode}\n`)
+                    process.stderr.write(
+                      `[${done}/${groups.size}] ${sourceDescription(group[0]!.source)} ${group[0]!.variant.mode}\n`,
+                    )
                   }
                 }),
               ),
@@ -361,6 +411,5 @@ export const CaptureRunnerLayer = Layer.effect(
         )
       }),
     })
-
   }),
 )

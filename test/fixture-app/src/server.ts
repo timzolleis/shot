@@ -9,7 +9,10 @@ import type { AddressInfo } from 'node:net'
 
 const accounts = new Set(['admin@example.org', 'parent@example.org'])
 
-const layout = (title: string, body: string) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title>
+const layout = (
+  title: string,
+  body: string,
+) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title>
 <style>
   :root { color-scheme: light dark; font: 16px/1.5 system-ui, sans-serif }
   body { margin: 0; padding: 24px; background: Canvas; color: CanvasText }
@@ -78,7 +81,14 @@ const pages = new Map<string, (user: string) => string>([
 </script>`,
       ),
   ],
-  ['/animated', () => layout('Animated', '<section><h2>Bar</h2><div class="grow" style="height:24px;background:#2563eb"></div></section>')],
+  [
+    '/animated',
+    () =>
+      layout(
+        'Animated',
+        '<section><h2>Bar</h2><div class="grow" style="height:24px;background:#2563eb"></div></section>',
+      ),
+  ],
 ])
 
 const handle = async (request: IncomingMessage, response: ServerResponse) => {
@@ -129,7 +139,8 @@ const handle = async (request: IncomingMessage, response: ServerResponse) => {
   if (page === undefined) return send(response, 404, layout('Not found', '<h1>Not found</h1>'))
   const user = userOf(request)
 
-  if (user === undefined) return send(response, 302, '', { location: `/login?next=${encodeURIComponent(url.pathname)}` })
+  if (user === undefined)
+    return send(response, 302, '', { location: `/login?next=${encodeURIComponent(url.pathname)}` })
 
   return send(response, 200, page(user))
 }

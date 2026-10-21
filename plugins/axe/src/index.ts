@@ -42,7 +42,10 @@ export const a11yCheck: CaptureCheck = {
 
                   return {
                     target,
-                    rect: rect === undefined ? undefined : { x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: rect.height },
+                    rect:
+                      rect === undefined
+                        ? undefined
+                        : { x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: rect.height },
                   }
                 }),
               }))
@@ -52,15 +55,13 @@ export const a11yCheck: CaptureCheck = {
       ).flat()
 
       return violations.flatMap((violation) =>
-        violation.nodes.map(
-          (node): Finding => ({
-            check: 'a11y',
-            severity: violation.impact === 'serious' || violation.impact === 'critical' ? 'error' : 'warn',
-            message: `${violation.help} (${violation.id})`,
-            selector: node.target.join(' '),
-            rect: Option.fromNullishOr(node.rect),
-          }),
-        ),
+        violation.nodes.map((node): Finding => ({
+          check: 'a11y',
+          severity: violation.impact === 'serious' || violation.impact === 'critical' ? 'error' : 'warn',
+          message: `${violation.help} (${violation.id})`,
+          selector: node.target.join(' '),
+          rect: Option.fromNullishOr(node.rect),
+        })),
       )
     }),
 }

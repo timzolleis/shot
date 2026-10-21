@@ -60,10 +60,7 @@ describe('CaptureRunner against the fixture app', () => {
   it('submit sends PATCH → aborted, console finding "blocked PATCH /api/settings" (4)', async () => {
     const [result] = await shoot('/settings', {
       ...defaultShootFlags,
-      steps: [
-        Fill.make({ selector: '#name', text: 'Test' }),
-        Key.make({ key: 'Enter' }),
-      ],
+      steps: [Fill.make({ selector: '#name', text: 'Test' }), Key.make({ key: 'Enter' })],
     })
 
     expect(result!._tag).toBe('CapturedResult')
@@ -85,7 +82,13 @@ describe('CaptureRunner against the fixture app', () => {
     rmSync(path.join(fixtureDir, '.shots', 'auth'), { recursive: true, force: true })
     const before = await logins()
     const env = { ...process.env, FIXTURE_URL: appUrl, SHOT_SESSION: 'runner-test-parallel' }
-    const run = () => promisify(execFile)(process.execPath, [bin, '/app/persons', '--as', 'admin', '--viewport'], { cwd: fixtureDir, env })
+
+    const run = () =>
+      promisify(execFile)(process.execPath, [bin, '/app/persons', '--as', 'admin', '--viewport'], {
+        cwd: fixtureDir,
+        env,
+      })
+
     const outputs = await Promise.all([run(), run()])
     expect(await logins()).toBe(before + 1)
     expect(outputs.map((output) => output.stdout.trim())).toEqual([

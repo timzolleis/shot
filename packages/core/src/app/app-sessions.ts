@@ -26,11 +26,17 @@ export class AppSessions extends Context.Service<
   {
     getAppSession(
       input: AppSessionInput,
-    ): Effect.Effect<StorageStateFile, AppHookMissingError | AppHookFailedError | AppNotRunningError | SessionLockTimeoutError>
+    ): Effect.Effect<
+      StorageStateFile,
+      AppHookMissingError | AppHookFailedError | AppNotRunningError | SessionLockTimeoutError
+    >
     /** Logs in fresh, even when a cached session exists. */
     renewAppSession(
       input: AppSessionInput,
-    ): Effect.Effect<StorageStateFile, AppHookMissingError | AppHookFailedError | AppNotRunningError | SessionLockTimeoutError>
+    ): Effect.Effect<
+      StorageStateFile,
+      AppHookMissingError | AppHookFailedError | AppNotRunningError | SessionLockTimeoutError
+    >
   }
 >()('shot/AppSessions') {}
 

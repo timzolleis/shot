@@ -5,7 +5,11 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { ArtifactStore } from '../../artifact/artifact-store.ts'
-import { type OpenSourceError, type ResolveSourceError, SourceProviders } from '../../capture/application/source-providers.ts'
+import {
+  type OpenSourceError,
+  type ResolveSourceError,
+  SourceProviders,
+} from '../../capture/application/source-providers.ts'
 import { slugFromText } from '../../capture/domain/capture-key.ts'
 import { VideoEncoder } from '../../evidence/application/video-encoder.ts'
 import type { VideoTooLargeError } from '../../evidence/domain/evidence-error.ts'
@@ -64,7 +68,11 @@ export const RecordFlowServiceLayer = Layer.effect(
         const looked = flowCandidates({ raw, projectRoot: config.projectRoot })
         const file = looked.find((candidate) => existsSync(candidate) && candidate.endsWith('.ts'))
 
-        if (file === undefined) return yield* new FlowNotFoundError({ flow: raw, looked: looked.map((candidate) => path.relative(process.cwd(), candidate)) })
+        if (file === undefined)
+          return yield* new FlowNotFoundError({
+            flow: raw,
+            looked: looked.map((candidate) => path.relative(process.cwd(), candidate)),
+          })
 
         const module = yield* Effect.tryPromise({
           try: () => import(pathToFileURL(file).href),
@@ -73,7 +81,11 @@ export const RecordFlowServiceLayer = Layer.effect(
 
         const decoded = yield* decodeFlowModule(module).pipe(
           Effect.mapError(
-            (error) => new FlowInvalidError({ file, reason: `the default export is not defineFlow(...): ${formatIssue(error.issue)}` }),
+            (error) =>
+              new FlowInvalidError({
+                file,
+                reason: `the default export is not defineFlow(...): ${formatIssue(error.issue)}`,
+              }),
           ),
         )
 
@@ -86,7 +98,12 @@ export const RecordFlowServiceLayer = Layer.effect(
         const { header, body } = definition
         const name = path.basename(file).replace(/\.flow\.ts$|\.ts$/, '')
         const params = header.params ?? {}
-        const source = yield* providers.resolveSource({ raw: header.start, as: Option.fromNullishOr(header.as), params })
+
+        const source = yield* providers.resolveSource({
+          raw: header.start,
+          as: Option.fromNullishOr(header.as),
+          params,
+        })
 
         const flow: Flow = {
           name,
@@ -135,14 +152,24 @@ export const RecordFlowServiceLayer = Layer.effect(
               }
 
               await Effect.runPromise(settlePage(page))
-              const still = path.join(dir, `${String(stills.length + 1).padStart(2, '0')}-${slugFromText(stepName)}.png`)
+
+              const still = path.join(
+                dir,
+                `${String(stills.length + 1).padStart(2, '0')}-${slugFromText(stepName)}.png`,
+              )
+
               await page.screenshot({ path: store.absolutePath(still), animations: 'disabled' })
               stills.push({ step: stepName, file: still })
             }
 
             yield* Effect.promise(async () => {
               try {
-                await Effect.runPromise(effectFromHook(() => body({ page, step }), (message) => new Error(message)))
+                await Effect.runPromise(
+                  effectFromHook(
+                    () => body({ page, step }),
+                    (message) => new Error(message),
+                  ),
+                )
               } catch (error) {
                 if (Option.isNone(stopped) && !(error instanceof FlowStopped)) {
                   stopped = Option.some({ step: '(outside a step)', reason: messageFromCause(error) })
@@ -181,13 +208,13 @@ export const RecordFlowServiceLayer = Layer.effect(
           onNone: () => CompletedFlow.make({ flow, stills: recorded.stills, video: videoFile, trace: recorded.trace }),
           onSome: ({ step, reason }) =>
             StoppedFlow.make({
-            flow,
-            stills: recorded.stills,
-            video: videoFile,
-            trace: recorded.trace,
-            failedStep: step,
-            reason,
-          }),
+              flow,
+              stills: recorded.stills,
+              video: videoFile,
+              trace: recorded.trace,
+              failedStep: step,
+              reason,
+            }),
         })
 
         yield* store.writeFlowResult({ label, flowResult })

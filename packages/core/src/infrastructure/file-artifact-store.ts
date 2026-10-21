@@ -56,7 +56,8 @@ export const FileArtifactStoreLayer = Layer.effect(
         yield* fs.rename(temporary, file)
       }).pipe(Effect.orDie)
 
-    const manifestDir = (label: string) => absolutePath(path.join(labelDirFromSession({ sessionDir, label }), 'manifest'))
+    const manifestDir = (label: string) =>
+      absolutePath(path.join(labelDirFromSession({ sessionDir, label }), 'manifest'))
 
     const readJsonFiles = (dir: string) =>
       Effect.gen(function* () {
@@ -104,7 +105,10 @@ export const FileArtifactStoreLayer = Layer.effect(
           yield* writeAtomic(absolutePath(file), content)
 
           if (measurements !== null && extension !== 'json') {
-            yield* writeAtomic(absolutePath(`${file.slice(0, -extension.length)}json`), JSON.stringify(measurements, null, 2))
+            yield* writeAtomic(
+              absolutePath(`${file.slice(0, -extension.length)}json`),
+              JSON.stringify(measurements, null, 2),
+            )
           }
 
           return file
@@ -166,9 +170,8 @@ export const FileArtifactStoreLayer = Layer.effect(
 
             if (stills.length < 2) continue
 
-            const cells = yield* Effect.forEach(
-              stills,
-              ({ file, label }) => fs.readFile(absolutePath(file)).pipe(Effect.map((png) => ({ png, label }))),
+            const cells = yield* Effect.forEach(stills, ({ file, label }) =>
+              fs.readFile(absolutePath(file)).pipe(Effect.map((png) => ({ png, label }))),
             ).pipe(Effect.orDie)
 
             const png = yield* sheets.composeSheet({ cells, title: sheet.title, columns: cells.length })
@@ -180,8 +183,7 @@ export const FileArtifactStoreLayer = Layer.effect(
 
           return file
         }),
-      readHostDefaults: (host) =>
-        Effect.map(readHostDefaultsFile, (file) => Option.fromNullishOr(file.hosts[host])),
+      readHostDefaults: (host) => Effect.map(readHostDefaultsFile, (file) => Option.fromNullishOr(file.hosts[host])),
       writeHostDefaults: ({ host, user, params }) =>
         Effect.gen(function* () {
           const file = yield* readHostDefaultsFile
@@ -202,7 +204,10 @@ export const FileArtifactStoreLayer = Layer.effect(
             () => '',
           )
 
-          const files = (yield* fs.readDirectory(dir)).filter((name) => name.startsWith(prefix) && name.endsWith('.json'))
+          const files = (yield* fs.readDirectory(dir)).filter(
+            (name) => name.startsWith(prefix) && name.endsWith('.json'),
+          )
+
           yield* Effect.forEach(files, (name) => fs.remove(path.join(dir, name), { force: true }), { discard: true })
 
           return files.length

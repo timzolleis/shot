@@ -24,21 +24,34 @@ export const focusCheck: CaptureCheck = {
           if (element === null || element === document.body) return undefined
           const rect = element.getBoundingClientRect()
 
-          return { x: rect.left + scrollX - 8, y: rect.top + scrollY - 8, width: rect.width + 16, height: rect.height + 16 }
+          return {
+            x: rect.left + scrollX - 8,
+            y: rect.top + scrollY - 8,
+            width: rect.width + 16,
+            height: rect.height + 16,
+          }
         }),
       )
 
       if (area === undefined) {
         return [
-          { check: 'focus', severity: 'error' as const, message: 'nothing is focused after the focus step', selector: step.selector, rect: Option.none() },
+          {
+            check: 'focus',
+            severity: 'error' as const,
+            message: 'nothing is focused after the focus step',
+            selector: step.selector,
+            rect: Option.none(),
+          },
         ]
       }
 
       const clip = { ...area, x: Math.max(0, area.x), y: Math.max(0, area.y) }
       const focused = yield* Effect.promise(() => page.screenshot({ fullPage: true, clip }))
-      yield* Effect.promise(() => page.evaluate(() => {
+      yield* Effect.promise(() =>
+        page.evaluate(() => {
           if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-        }))
+        }),
+      )
       yield* settlePage(page)
       const blurred = yield* Effect.promise(() => page.screenshot({ fullPage: true, clip }))
       yield* Effect.promise(async () => {

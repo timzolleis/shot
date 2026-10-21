@@ -91,7 +91,11 @@ export const SheetsLayer = Layer.effect(
                   grid.append(figure)
                 })
               },
-              { cells: cells.map((cell) => ({ src: dataUrl(cell.png), label: cell.label })), columns, maxWidth: maxSheetWidth },
+              {
+                cells: cells.map((cell) => ({ src: dataUrl(cell.png), label: cell.label })),
+                columns,
+                maxWidth: maxSheetWidth,
+              },
             )
 
             return new Uint8Array(await page.locator('#sheet').screenshot())
@@ -101,7 +105,9 @@ export const SheetsLayer = Layer.effect(
         withPage((page) =>
           Effect.gen(function* () {
             yield* Effect.promise(() =>
-              page.setContent('<!doctype html><html><body style="margin:0;background:#fff"><canvas id="loupe"></canvas></body></html>'),
+              page.setContent(
+                '<!doctype html><html><body style="margin:0;background:#fff"><canvas id="loupe"></canvas></body></html>',
+              ),
             )
 
             const size = yield* Effect.promise(() =>

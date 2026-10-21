@@ -62,7 +62,10 @@ export const Section = Schema.TaggedStruct('Section', { title: Schema.String, nt
 export type Section = typeof Section.Type
 
 /** `within`: a section title the selector is scoped to. */
-export const Selected = Schema.TaggedStruct('Selected', { selector: Schema.String, within: Schema.Option(Schema.String) })
+export const Selected = Schema.TaggedStruct('Selected', {
+  selector: Schema.String,
+  within: Schema.Option(Schema.String),
+})
 
 export type Selected = typeof Selected.Type
 
@@ -75,8 +78,17 @@ export const Overlay = Schema.Literals(overlays)
 
 export type Overlay = typeof Overlay.Type
 
-export const Still = Schema.TaggedStruct('Still', { overlays: Schema.Array(Overlay), loupe: Schema.Option(Schema.Number) })
-export const Frames = Schema.TaggedStruct('Frames', { count: Schema.Number, everyMs: Schema.Number, slow: Schema.Number })
+export const Still = Schema.TaggedStruct('Still', {
+  overlays: Schema.Array(Overlay),
+  loupe: Schema.Option(Schema.Number),
+})
+
+export const Frames = Schema.TaggedStruct('Frames', {
+  count: Schema.Number,
+  everyMs: Schema.Number,
+  slow: Schema.Number,
+})
+
 export const Measure = Schema.TaggedStruct('Measure', { styles: Schema.Array(Schema.String), all: Schema.Boolean })
 export const AriaTree = Schema.TaggedStruct('AriaTree', {})
 

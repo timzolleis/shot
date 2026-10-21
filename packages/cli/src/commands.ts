@@ -19,7 +19,10 @@ import { readFileSync } from 'node:fs'
 import { FillValue, LabelValue, stepsFromArgv } from './flags.ts'
 import { anyErrorFinding, displayPath, printCaptureResults, printLine } from './output.ts'
 
-const asFlag = Flag.String('as').pipe(Flag.withDescription('the user: an alias from the config, or an email'), Flag.optional)
+const asFlag = Flag.String('as').pipe(
+  Flag.withDescription('the user: an alias from the config, or an email'),
+  Flag.optional,
+)
 
 const paramFlag = Flag.KeyValuePair('param').pipe(
   Flag.withDescription('a login param for the logIn hook, name=value (e.g. org=acme); repeatable'),
@@ -33,13 +36,19 @@ const labelFlag = Flag.String('label').pipe(
 )
 
 const jsonFlag = Flag.Boolean('json').pipe(Flag.withDescription('print results as JSON'), Flag.withDefault(false))
-const steps = (name: string, description: string) => Flag.String(name).pipe(Flag.withDescription(description), Flag.atLeast(0))
+
+const steps = (name: string, description: string) =>
+  Flag.String(name).pipe(Flag.withDescription(description), Flag.atLeast(0))
 
 const optionalNumber = (name: string, description: string) =>
   Flag.Finite(name).pipe(Flag.withDescription(description), Flag.optional)
 
 const optionalCount = (name: string, description: string) =>
-  Flag.Int(name).pipe(Flag.withSchema(Schema.Int.pipe(Schema.check(Schema.isGreaterThan(0)))), Flag.withDescription(description), Flag.optional)
+  Flag.Int(name).pipe(
+    Flag.withSchema(Schema.Int.pipe(Schema.check(Schema.isGreaterThan(0)))),
+    Flag.withDescription(description),
+    Flag.optional,
+  )
 
 const modesFromFlag: Record<'light' | 'dark' | 'both', ReadonlyArray<Mode>> = {
   light: ['light'],
@@ -55,15 +64,28 @@ const shootFlags = {
   param: paramFlag,
   label: labelFlag,
   json: jsonFlag,
-  mode: Flag.Literals('mode', ['light', 'dark', 'both']).pipe(Flag.withDescription('color scheme'), Flag.withDefault('light')),
+  mode: Flag.Literals('mode', ['light', 'dark', 'both']).pipe(
+    Flag.withDescription('color scheme'),
+    Flag.withDefault('light'),
+  ),
   mobile: Flag.Boolean('mobile').pipe(Flag.withDescription('same as --device "iPhone 15"'), Flag.withDefault(false)),
-  device: Flag.String('device').pipe(Flag.withDescription('a Playwright device: "Pixel 8", "iPad Mini"'), Flag.optional),
-  width: optionalNumber('width', 'viewport width (default 1280, or the device\'s)'),
-  height: optionalNumber('height', 'viewport height (default 900, or the device\'s)'),
+  device: Flag.String('device').pipe(
+    Flag.withDescription('a Playwright device: "Pixel 8", "iPad Mini"'),
+    Flag.optional,
+  ),
+  width: optionalNumber('width', "viewport width (default 1280, or the device's)"),
+  height: optionalNumber('height', "viewport height (default 900, or the device's)"),
   scale: optionalNumber('scale', 'device scale factor (default 1, 2 with a device)'),
-  reducedMotion: Flag.Boolean('reduced-motion').pipe(Flag.withDescription('prefers-reduced-motion: reduce'), Flag.withDefault(false)),
+  reducedMotion: Flag.Boolean('reduced-motion').pipe(
+    Flag.withDescription('prefers-reduced-motion: reduce'),
+    Flag.withDefault(false),
+  ),
   click: steps('click', 'scene step, in command-line order'),
-  fill: Flag.String('fill').pipe(Flag.withSchema(FillValue), Flag.withDescription('scene step: <css>=<text>'), Flag.atLeast(0)),
+  fill: Flag.String('fill').pipe(
+    Flag.withSchema(FillValue),
+    Flag.withDescription('scene step: <css>=<text>'),
+    Flag.atLeast(0),
+  ),
   key: steps('key', 'scene step: a key (Enter, Escape)'),
   hover: steps('hover', 'scene step, runs last and holds'),
   focus: steps('focus', 'scene step, runs last and holds; checks the focus ring with --check'),
@@ -73,18 +95,33 @@ const shootFlags = {
     Flag.withDescription('a section by title (exact, else unique substring; "Title >> nth=1"); repeatable'),
     Flag.atLeast(0),
   ),
-  select: Flag.String('select').pipe(Flag.withDescription('the first visible match, 16px around it; repeatable'), Flag.atLeast(0)),
+  select: Flag.String('select').pipe(
+    Flag.withDescription('the first visible match, 16px around it; repeatable'),
+    Flag.atLeast(0),
+  ),
   viewport: Flag.Boolean('viewport').pipe(Flag.withDescription('only the viewport'), Flag.withDefault(false)),
-  overlay: Flag.Literals('overlay', overlays).pipe(Flag.withDescription('draw measurements on the still; repeatable'), Flag.atLeast(0)),
+  overlay: Flag.Literals('overlay', overlays).pipe(
+    Flag.withDescription('draw measurements on the still; repeatable'),
+    Flag.atLeast(0),
+  ),
   loupe: optionalCount('loupe', 'the part at n×, nearest-neighbour'),
-  frames: optionalCount('frames', 'n frames from the scene\'s last step, on one sheet'),
+  frames: optionalCount('frames', "n frames from the scene's last step, on one sheet"),
   every: optionalNumber('every', 'ms of animation time between frames (default 50)'),
   slow: optionalNumber('slow', 'animation speed for frames (0.1 = 10× slower)'),
-  measure: Flag.Boolean('measure').pipe(Flag.withDescription('JSON per match: box, spacing, radius, font'), Flag.withDefault(false)),
+  measure: Flag.Boolean('measure').pipe(
+    Flag.withDescription('JSON per match: box, spacing, radius, font'),
+    Flag.withDefault(false),
+  ),
   style: Flag.String('style').pipe(Flag.withDescription('a computed style for --measure; repeatable'), Flag.atLeast(0)),
   all: Flag.Boolean('all').pipe(Flag.withDescription('--measure every match, not the first'), Flag.withDefault(false)),
-  aria: Flag.Boolean('aria').pipe(Flag.withDescription('the part\'s accessibility tree as text'), Flag.withDefault(false)),
-  check: Flag.Boolean('check').pipe(Flag.withDescription('run the checks (overflow, target, focus, align, plugins\')'), Flag.withDefault(false)),
+  aria: Flag.Boolean('aria').pipe(
+    Flag.withDescription("the part's accessibility tree as text"),
+    Flag.withDefault(false),
+  ),
+  check: Flag.Boolean('check').pipe(
+    Flag.withDescription("run the checks (overflow, target, focus, align, plugins')"),
+    Flag.withDefault(false),
+  ),
   name: Flag.String('name').pipe(Flag.withDescription('name the files instead of the generated slug'), Flag.optional),
 }
 
@@ -109,9 +146,7 @@ const shootFlagsFromInput = (input: ShootInput): ShootFlags => ({
     everyMs: Option.getOrElse(input.every, () => 50),
     slow: Option.getOrElse(input.slow, () => 1),
   })),
-  measure: input.measure
-    ? Option.some({ styles: input.style, all: input.all })
-    : Option.none(),
+  measure: input.measure ? Option.some({ styles: input.style, all: input.all }) : Option.none(),
   aria: input.aria,
   name: input.name,
 })
@@ -141,9 +176,18 @@ export const shot = Command.make('shot', shootFlags, (input) =>
   Command.withDescription('Shoot an app path or a URL: stills, overlays, measurements, checks.'),
   Command.withExamples([
     { command: 'shot /app/persons --as admin --mode dark', description: 'one still per section, dark' },
-    { command: "shot /settings --as admin --fill '#name=Test' --key Enter --section Profile", description: 'a scene, then one section' },
-    { command: 'git stash -u && shot /app/persons --as admin --label before', description: 'the state before your change' },
-    { command: 'shot /settings --as admin --select "#save" --overlay boxes --overlay gaps --check', description: 'measure and check one control' },
+    {
+      command: "shot /settings --as admin --fill '#name=Test' --key Enter --section Profile",
+      description: 'a scene, then one section',
+    },
+    {
+      command: 'git stash -u && shot /app/persons --as admin --label before',
+      description: 'the state before your change',
+    },
+    {
+      command: 'shot /settings --as admin --select "#save" --overlay boxes --overlay gaps --check',
+      description: 'measure and check one control',
+    },
   ]),
 )
 
@@ -160,7 +204,11 @@ const outline = Command.make(
 
 const flow = Command.make(
   'flow',
-  { flow: Argument.String('flow').pipe(Argument.withDescription('a name (shots/<name>.flow.ts) or a file')), label: labelFlag, json: jsonFlag },
+  {
+    flow: Argument.String('flow').pipe(Argument.withDescription('a name (shots/<name>.flow.ts) or a file')),
+    label: labelFlag,
+    json: jsonFlag,
+  },
   ({ flow: raw, label, json }) =>
     Effect.gen(function* () {
       const service = yield* RecordFlowService
@@ -180,14 +228,19 @@ const flow = Command.make(
     }),
 ).pipe(
   Command.withDescription('Record a flow: a still per step, a video and a trace.'),
-  Command.withExamples([{ command: 'shot flow invite-parent --label after', description: 'runs shots/invite-parent.flow.ts' }]),
+  Command.withExamples([
+    { command: 'shot flow invite-parent --label after', description: 'runs shots/invite-parent.flow.ts' },
+  ]),
 )
 
 const publish = Command.make(
   'publish',
   {
-    pr: Flag.Int('pr').pipe(Flag.withDescription('the PR number (default: the current branch\'s)'), Flag.optional),
-    publisher: Flag.String('publisher').pipe(Flag.withDescription('a configured publisher (default: the first)'), Flag.optional),
+    pr: Flag.Int('pr').pipe(Flag.withDescription("the PR number (default: the current branch's)"), Flag.optional),
+    publisher: Flag.String('publisher').pipe(
+      Flag.withDescription('a configured publisher (default: the first)'),
+      Flag.optional,
+    ),
   },
   ({ pr, publisher }) =>
     Effect.gen(function* () {
@@ -196,7 +249,7 @@ const publish = Command.make(
       yield* printLine(yield* displayPath(reportFile))
       yield* printLine(`published ${published.attachments} files to ${published.url}`)
     }),
-).pipe(Command.withDescription('Publish the session\'s evidence to the PR body, replacing the last publish.'))
+).pipe(Command.withDescription("Publish the session's evidence to the PR body, replacing the last publish."))
 
 const login = Command.make(
   'login',
@@ -226,7 +279,7 @@ const clean = Command.make(
       const removed = yield* store.clean({ all })
       yield* printLine(`removed ${yield* displayPath(removed)}`)
     }),
-).pipe(Command.withDescription('Delete this session\'s files (--all: every session; login defaults stay).'))
+).pipe(Command.withDescription("Delete this session's files (--all: every session; login defaults stay)."))
 
 const skillFile = new URL('../../../skill/SKILL.md', import.meta.url)
 

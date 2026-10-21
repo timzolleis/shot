@@ -113,7 +113,9 @@ describe('publishEvidenceToPr', () => {
       const gh = fakeGh({
         '--version': ok('gh version 2.99.0 (2026-09-01)\n'),
         'repo view': repo,
-        'pr view': ok(JSON.stringify({ number: 812, body: 'Fixes the list.', url: 'https://github.com/acme/shot/pull/812' })),
+        'pr view': ok(
+          JSON.stringify({ number: 812, body: 'Fixes the list.', url: 'https://github.com/acme/shot/pull/812' }),
+        ),
         'pr edit': ok(''),
       })
 

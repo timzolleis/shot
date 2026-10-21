@@ -18,9 +18,10 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 /** `gh` in the project's directory. */
-export class GhCli extends Context.Service<GhCli, { runGh(args: ReadonlyArray<string>): Effect.Effect<ProcessOutput> }>()(
-  'shot/github/GhCli',
-) {}
+export class GhCli extends Context.Service<
+  GhCli,
+  { runGh(args: ReadonlyArray<string>): Effect.Effect<ProcessOutput> }
+>()('shot/github/GhCli') {}
 
 export const GhCliLayer = Layer.effect(
   GhCli,
@@ -38,8 +39,10 @@ export const GhCliLayer = Layer.effect(
 )
 
 /** `gh … --json` output; anything else is a gh bug, so it dies. */
-const decodeGhJson = <S extends Schema.Top>(schema: S) => (stdout: string) =>
-  Schema.decodeUnknownEffect(Schema.fromJsonString(schema))(stdout).pipe(Effect.orDie)
+const decodeGhJson =
+  <S extends Schema.Top>(schema: S) =>
+  (stdout: string) =>
+    Schema.decodeUnknownEffect(Schema.fromJsonString(schema))(stdout).pipe(Effect.orDie)
 
 const decodeRepoView = decodeGhJson(
   Schema.Struct({ nameWithOwner: Schema.String, viewerPermission: Schema.NullOr(Schema.String) }),
@@ -50,7 +53,8 @@ const decodePrView = decodeGhJson(Schema.Struct({ number: Schema.Number, body: S
 /** `gh --attach` exists from 2.99 (C10). */
 export const minimumGhVersion = [2, 99, 0] as const
 
-export const ghVersionFromOutput = (output: string): string | undefined => /gh version (\d+\.\d+\.\d+)/.exec(output)?.[1]
+export const ghVersionFromOutput = (output: string): string | undefined =>
+  /gh version (\d+\.\d+\.\d+)/.exec(output)?.[1]
 
 export const isGhVersionSupported = (version: string): boolean => {
   const parts = version.split('.').map(Number)
@@ -82,7 +86,8 @@ export const publishEvidenceToPr = Effect.fn('github.publishEvidence')(function*
   const store = yield* ArtifactStore
   const versionOutput = yield* gh.runGh(['--version'])
 
-  if (versionOutput.exitCode !== 0) return yield* new GhMissingError({ reason: firstLine(versionOutput.stderr) || 'gh is not installed' })
+  if (versionOutput.exitCode !== 0)
+    return yield* new GhMissingError({ reason: firstLine(versionOutput.stderr) || 'gh is not installed' })
   const version = ghVersionFromOutput(versionOutput.stdout) ?? '0.0.0'
 
   if (!isGhVersionSupported(version)) return yield* new GhTooOldError({ version })

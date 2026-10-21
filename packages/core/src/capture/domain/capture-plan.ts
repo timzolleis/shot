@@ -121,9 +121,7 @@ const partsFromFlags = (flags: ShootFlags): ReadonlyArray<Part> => {
   if (flags.selects.length > 0) {
     const scopes = flags.sections.length > 0 ? flags.sections.map((title) => Option.some(title)) : [Option.none()]
 
-    return flags.selects.flatMap((selector) =>
-      scopes.map((within): Part => Selected.make({ selector, within })),
-    )
+    return flags.selects.flatMap((selector) => scopes.map((within): Part => Selected.make({ selector, within })))
   }
 
   if (flags.sections.length > 0) return flags.sections.map(sectionFromTitle)
@@ -148,9 +146,14 @@ const crossCaptures = (input: {
   readonly output: Output
 }): Plan =>
   input.variants.flatMap((variant) =>
-    input.parts.map(
-      (part): Capture => ({ source: input.source, name: input.name, variant, scene: input.scene, part, output: input.output }),
-    ),
+    input.parts.map((part): Capture => ({
+      source: input.source,
+      name: input.name,
+      variant,
+      scene: input.scene,
+      part,
+      output: input.output,
+    })),
   )
 
 export const planCapturesFromFlags = ({

@@ -21,8 +21,15 @@ export class AppHooks extends Context.Service<
     }): Effect.Effect<void, AppHookMissingError | AppHookFailedError>
     isLoginPage(url: URL): boolean
     /** `waitForLoad` is the default: load, then the network quiet. */
-    waitUntilReady(input: { readonly page: Page; readonly waitForLoad: Effect.Effect<void> }): Effect.Effect<void, AppHookFailedError>
-    applyTheme(input: { readonly context: BrowserContext; readonly url: string; readonly mode: Mode }): Effect.Effect<void, AppHookFailedError>
+    waitUntilReady(input: {
+      readonly page: Page
+      readonly waitForLoad: Effect.Effect<void>
+    }): Effect.Effect<void, AppHookFailedError>
+    applyTheme(input: {
+      readonly context: BrowserContext
+      readonly url: string
+      readonly mode: Mode
+    }): Effect.Effect<void, AppHookFailedError>
     readonly writes: 'block' | 'allow'
   }
 >()('shot/AppHooks') {}
@@ -43,10 +50,13 @@ const appHealthy = (url: string) =>
   })
 
 const hookOf = <K extends keyof AppConfig>(app: Option.Option<AppConfig>, hook: K) =>
-  Option.match(Option.flatMap(app, (config) => Option.fromNullishOr(config[hook])), {
-    onNone: () => new AppHookMissingError({ hook: `app.${hook}` }),
-    onSome: (value) => Effect.succeed(value),
-  })
+  Option.match(
+    Option.flatMap(app, (config) => Option.fromNullishOr(config[hook])),
+    {
+      onNone: () => new AppHookMissingError({ hook: `app.${hook}` }),
+      onSome: (value) => Effect.succeed(value),
+    },
+  )
 
 export const AppHooksLayer = Layer.effect(
   AppHooks,
@@ -81,20 +91,31 @@ export const AppHooksLayer = Layer.effect(
           yield* effectFromHook(() => logIn({ page, url, user, params }), failed('logIn', Option.some(user)))
         }),
       isLoginPage: (url) =>
-        Option.match(Option.flatMap(app, (config) => Option.fromNullishOr(config.isLoginPage)), {
-          onNone: () => url.pathname.startsWith('/login'),
-          onSome: (isLoginPage) => isLoginPage(url),
-        }),
+        Option.match(
+          Option.flatMap(app, (config) => Option.fromNullishOr(config.isLoginPage)),
+          {
+            onNone: () => url.pathname.startsWith('/login'),
+            onSome: (isLoginPage) => isLoginPage(url),
+          },
+        ),
       waitUntilReady: ({ page, waitForLoad }) =>
-        Option.match(Option.flatMap(app, (config) => Option.fromNullishOr(config.waitUntilReady)), {
-          onNone: () => waitForLoad,
-          onSome: (waitUntilReady) => effectFromHook(() => waitUntilReady(page), failed('waitUntilReady', Option.none())),
-        }),
+        Option.match(
+          Option.flatMap(app, (config) => Option.fromNullishOr(config.waitUntilReady)),
+          {
+            onNone: () => waitForLoad,
+            onSome: (waitUntilReady) =>
+              effectFromHook(() => waitUntilReady(page), failed('waitUntilReady', Option.none())),
+          },
+        ),
       applyTheme: ({ context, url, mode }) =>
-        Option.match(Option.flatMap(app, (config) => Option.fromNullishOr(config.applyTheme)), {
-          onNone: () => Effect.void,
-          onSome: (applyTheme) => effectFromHook(() => applyTheme({ context, url, mode }), failed('applyTheme', Option.none())),
-        }),
+        Option.match(
+          Option.flatMap(app, (config) => Option.fromNullishOr(config.applyTheme)),
+          {
+            onNone: () => Effect.void,
+            onSome: (applyTheme) =>
+              effectFromHook(() => applyTheme({ context, url, mode }), failed('applyTheme', Option.none())),
+          },
+        ),
       writes: Option.match(app, { onNone: () => 'block' as const, onSome: (config) => config.writes ?? 'block' }),
     })
   }),

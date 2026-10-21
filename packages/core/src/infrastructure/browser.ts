@@ -1,7 +1,12 @@
 import { Context, Effect, Layer, Option, Ref, Semaphore, type Scope } from 'effect'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { type Browser as PlaywrightBrowser, type BrowserContext, type BrowserContextOptions, chromium } from 'playwright'
+import {
+  type Browser as PlaywrightBrowser,
+  type BrowserContext,
+  type BrowserContextOptions,
+  chromium,
+} from 'playwright'
 
 /** Playwright Chromium, launched on first use and closed with the layer; contexts scoped to their use. */
 export class Browser extends Context.Service<
@@ -31,7 +36,9 @@ export const PlaywrightBrowserLayer = Layer.effect(
     const launching = yield* Semaphore.make(1)
     yield* Effect.addFinalizer(() =>
       Ref.get(launched).pipe(
-        Effect.flatMap(Option.match({ onNone: () => Effect.void, onSome: (browser) => Effect.promise(() => browser.close()) })),
+        Effect.flatMap(
+          Option.match({ onNone: () => Effect.void, onSome: (browser) => Effect.promise(() => browser.close()) }),
+        ),
       ),
     )
 

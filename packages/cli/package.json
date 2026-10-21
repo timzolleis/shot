@@ -2,13 +2,13 @@
   "name": "shot",
   "version": "0.1.0",
   "private": false,
-  "type": "module",
   "bin": {
     "shot": "./src/bin.ts"
   },
+  "type": "module",
   "dependencies": {
-    "effect": "4.0.5",
     "@effect/platform-node": "4.0.5",
-    "@shot/core": "workspace:*"
+    "@shot/core": "workspace:*",
+    "effect": "4.0.5"
   }
 }

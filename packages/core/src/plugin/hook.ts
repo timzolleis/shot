@@ -13,10 +13,7 @@ export const messageFromCause = (cause: unknown): string => {
 }
 
 /** Runs a hook once; a throw, a rejection or a failed Effect becomes `onError(message)`. */
-export const effectFromHook = <A, E>(
-  evaluate: () => Hook<A>,
-  onError: (message: string) => E,
-): Effect.Effect<A, E> =>
+export const effectFromHook = <A, E>(evaluate: () => Hook<A>, onError: (message: string) => E): Effect.Effect<A, E> =>
   Effect.suspend(() => {
     let returned: Hook<A>
 
@@ -27,9 +24,7 @@ export const effectFromHook = <A, E>(
     }
 
     if (Effect.isEffect(returned)) {
-      return returned.pipe(
-        Effect.catchCause((cause) => Effect.fail(onError(messageFromCause(Cause.squash(cause))))),
-      )
+      return returned.pipe(Effect.catchCause((cause) => Effect.fail(onError(messageFromCause(Cause.squash(cause))))))
     }
 
     return Effect.tryPromise({
@@ -37,4 +32,3 @@ export const effectFromHook = <A, E>(
       catch: (error) => onError(messageFromCause(error)),
     })
   })
-

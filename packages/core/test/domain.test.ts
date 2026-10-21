@@ -50,8 +50,16 @@ describe('planCapturesFromFlags', () => {
   const frames = Option.some({ count: 4, everyMs: 50, slow: 1 })
   const measure = Option.some({ styles: [], all: false })
   it.each([
-    { name: '--frames and --measure', flags: { ...defaultShootFlags, frames, measure }, expected: 'ConflictingOutputsError' },
-    { name: '--aria and --overlay', flags: { ...defaultShootFlags, aria: true, overlays: ['boxes' as const] }, expected: 'ConflictingOutputsError' },
+    {
+      name: '--frames and --measure',
+      flags: { ...defaultShootFlags, frames, measure },
+      expected: 'ConflictingOutputsError',
+    },
+    {
+      name: '--aria and --overlay',
+      flags: { ...defaultShootFlags, aria: true, overlays: ['boxes' as const] },
+      expected: 'ConflictingOutputsError',
+    },
     { name: '--frames alone', flags: { ...defaultShootFlags, frames }, expected: 'ok' },
   ])('$name → $expected', ({ flags, expected }) => {
     expect(failureTag(planCapturesFromFlags({ source: persons, flags }))).toBe(expected)
@@ -60,11 +68,7 @@ describe('planCapturesFromFlags', () => {
   it('hover, focus and press run after the other steps', () => {
     const capture = onlyCapture({
       ...defaultShootFlags,
-      steps: [
-        Focus.make({ selector: '#a' }),
-        Click.make({ selector: '#b' }),
-        Key.make({ key: 'Enter' }),
-      ],
+      steps: [Focus.make({ selector: '#a' }), Click.make({ selector: '#b' }), Key.make({ key: 'Enter' })],
     })
 
     expect(capture.scene.map((step) => step._tag)).toEqual(['Click', 'Key', 'Focus'])
@@ -73,7 +77,12 @@ describe('planCapturesFromFlags', () => {
 
 describe('planDefaultCaptures', () => {
   it('one still per section; repeated titles get nth', () => {
-    const plan = planDefaultCaptures({ source: persons, flags: defaultShootFlags, sections: ['Profile', 'Sizes', 'Sizes'] })
+    const plan = planDefaultCaptures({
+      source: persons,
+      flags: defaultShootFlags,
+      sections: ['Profile', 'Sizes', 'Sizes'],
+    })
+
     expect(plan.map((capture) => capture.part)).toEqual([
       Section.make({ title: 'Profile', nth: Option.none() }),
       Section.make({ title: 'Sizes', nth: Option.some(0) }),
@@ -85,19 +94,31 @@ describe('planDefaultCaptures', () => {
 describe('videoEncodingForBudget (9)', () => {
   const recording = { file: 'invite-parent.mp4', durationMs: 42_000, width: 1280, height: 900 }
   it('fits → native width, no bitrate cap', () => {
-    expect(Result.getOrThrow(videoEncodingForBudget({ ...recording, bytes: 4 * megabyte, limitBytes: 10 * megabyte }))).toEqual({
+    expect(
+      Result.getOrThrow(videoEncodingForBudget({ ...recording, bytes: 4 * megabyte, limitBytes: 10 * megabyte })),
+    ).toEqual({
       width: 1280,
       bitrate: undefined,
     })
   })
   it('31 MB at 1280 wide, limit 10 MB → 960 wide', () => {
-    const encoding = Result.getOrThrow(videoEncodingForBudget({ ...recording, bytes: 31 * megabyte, limitBytes: 10 * megabyte }))
+    const encoding = Result.getOrThrow(
+      videoEncodingForBudget({ ...recording, bytes: 31 * megabyte, limitBytes: 10 * megabyte }),
+    )
+
     expect(encoding.width).toBe(960)
     expect((encoding.bitrate! * 42) / 8).toBeLessThan(10 * megabyte)
   })
   it('no resolution reaches the limit → VideoTooLargeError', () => {
     expect(
-      failureTag(videoEncodingForBudget({ ...recording, durationMs: 20 * 60_000, bytes: 400 * megabyte, limitBytes: 10 * megabyte })),
+      failureTag(
+        videoEncodingForBudget({
+          ...recording,
+          durationMs: 20 * 60_000,
+          bytes: 400 * megabyte,
+          limitBytes: 10 * megabyte,
+        }),
+      ),
     ).toBe('VideoTooLargeError')
   })
 })

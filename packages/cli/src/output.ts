@@ -26,7 +26,11 @@ export const findingLine = (result: CaptureResult, finding: Finding): string => 
 
 /** The same finding in light and dark is one line. */
 export const distinctFindingLines = (results: ReadonlyArray<CaptureResult>): ReadonlyArray<string> => [
-  ...new Set(results.flatMap((result) => result.findings.map((finding) => findingLine(result, finding).replace(/ \((light|dark)\):/, ':')))),
+  ...new Set(
+    results.flatMap((result) =>
+      result.findings.map((finding) => findingLine(result, finding).replace(/ \((light|dark)\):/, ':')),
+    ),
+  ),
 ]
 
 export const printCaptureResults = (results: ReadonlyArray<CaptureResult>) =>

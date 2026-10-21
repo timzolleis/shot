@@ -13,7 +13,14 @@ export const reasonFromCaptureFailure = (error: CaptureFailure): string =>
       ].join('; '),
     SourceRedirectedError: ({ landedOn }) => `redirected to ${landedOn}`,
     SectionNotFoundError: ({ title, outline }) =>
-      `no section "${title}"; sections: ${outline === '' ? '(none)' : outline.split('\n').map((line) => line.trim()).join(', ')}`,
+      `no section "${title}"; sections: ${
+        outline === ''
+          ? '(none)'
+          : outline
+              .split('\n')
+              .map((line) => line.trim())
+              .join(', ')
+      }`,
     AmbiguousSectionError: ({ title, matches }) =>
       `"${title}" matches ${matches.length} sections: ${matches.join(', ')}; add ' >> nth=<i>'`,
     SelectionNotFoundError: ({ selector, reason }) => `--select ${selector}: ${reason}`,

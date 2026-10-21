@@ -29,7 +29,10 @@ export class ArtifactStore extends Context.Service<
       readonly content: Uint8Array | string
       readonly measurements: Schema.Json
     }): Effect.Effect<string>
-    writeManifest(input: { readonly label: string; readonly results: ReadonlyArray<CaptureResult> }): Effect.Effect<void>
+    writeManifest(input: {
+      readonly label: string
+      readonly results: ReadonlyArray<CaptureResult>
+    }): Effect.Effect<void>
     /** A fresh directory for one flow's stills, video and trace. */
     makeFlowDir(input: { readonly label: string; readonly name: string }): Effect.Effect<string>
     writeFlowResult(input: { readonly label: string; readonly flowResult: FlowResult }): Effect.Effect<void>

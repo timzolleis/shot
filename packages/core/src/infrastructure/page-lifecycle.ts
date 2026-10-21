@@ -42,7 +42,11 @@ const editDistance = (a: string, b: string): number => {
 }
 
 /** The `count` candidates nearest to `needle`, for "did you mean". */
-export const closestCandidates = (needle: string, candidates: ReadonlyArray<string>, count = 5): ReadonlyArray<string> =>
+export const closestCandidates = (
+  needle: string,
+  candidates: ReadonlyArray<string>,
+  count = 5,
+): ReadonlyArray<string> =>
   candidates
     .map((candidate) => ({ candidate, distance: editDistance(needle.toLowerCase(), candidate.toLowerCase()) }))
     .sort((a, b) => a.distance - b.distance)
@@ -60,7 +64,10 @@ export const contextOptionsFromVariant = (variant: Variant): Effect.Effect<Brows
           ? Effect.fail(
               new UnknownDeviceError({
                 device: requested,
-                closest: closestCandidates(requested, Object.keys(devices).filter((candidate) => !candidate.endsWith('landscape'))),
+                closest: closestCandidates(
+                  requested,
+                  Object.keys(devices).filter((candidate) => !candidate.endsWith('landscape')),
+                ),
               }),
             )
           : Effect.succeed(devices[name])
@@ -287,7 +294,9 @@ export const fitContent = ({ page, expand }: { readonly page: Page; readonly exp
 
       if (hidden <= 1) return
       const current = page.viewportSize() ?? original
-      yield* Effect.promise(() => page.setViewportSize({ width: current.width, height: Math.min(12_000, current.height + hidden) }))
+      yield* Effect.promise(() =>
+        page.setViewportSize({ width: current.width, height: Math.min(12_000, current.height + hidden) }),
+      )
       yield* settlePage(page)
     }
   })
@@ -305,18 +314,27 @@ export const stepDescription = (step: Step): string =>
 
 const firstLine = (cause: unknown) => (String(cause).split('\n')[0] ?? '').replace(/^[\w.]+: /, '')
 
-const stepFailed = (step: Step, cause: unknown) => new StepFailedError({ step: stepDescription(step), reason: firstLine(cause) })
+const stepFailed = (step: Step, cause: unknown) =>
+  new StepFailedError({ step: stepDescription(step), reason: firstLine(cause) })
 
 type LocatorStep = Exclude<Step, { readonly _tag: 'Key' | 'Wait' }>
 
 /** Acts on the step's first visible match. */
-const runLocatorStep = ({ page, step }: { readonly page: Page; readonly step: LocatorStep }): Effect.Effect<void, StepFailedError> =>
+const runLocatorStep = ({
+  page,
+  step,
+}: {
+  readonly page: Page
+  readonly step: LocatorStep
+}): Effect.Effect<void, StepFailedError> =>
   Effect.gen(function* () {
     // Pages keep hidden copies of controls (mobile and desktop layouts, closed popups): the first visible match.
     const locator = page.locator(step.selector).filter({ visible: true }).first()
     yield* Effect.promise(() => locator.waitFor({ state: 'visible', timeout: 2000 }).catch(() => undefined))
+
     // A selector Playwright cannot parse fails here, as the step's error.
-    const counted = (count: () => Promise<number>) => Effect.tryPromise({ try: count, catch: (cause) => stepFailed(step, cause) })
+    const counted = (count: () => Promise<number>) =>
+      Effect.tryPromise({ try: count, catch: (cause) => stepFailed(step, cause) })
 
     if ((yield* counted(() => locator.count())) === 0) {
       const hidden = yield* counted(() => page.locator(step.selector).count())
@@ -348,9 +366,17 @@ const runLocatorStep = ({ page, step }: { readonly page: Page; readonly step: Lo
   })
 
 /** Runs one step on the first visible match; fails with one line naming the step. */
-export const runStep = ({ page, step }: { readonly page: Page; readonly step: Step }): Effect.Effect<void, StepFailedError> =>
+export const runStep = ({
+  page,
+  step,
+}: {
+  readonly page: Page
+  readonly step: Step
+}): Effect.Effect<void, StepFailedError> =>
   Match.value(step).pipe(
-    Match.tag('Key', ({ key }) => Effect.tryPromise({ try: () => page.keyboard.press(key), catch: (cause) => stepFailed(step, cause) })),
+    Match.tag('Key', ({ key }) =>
+      Effect.tryPromise({ try: () => page.keyboard.press(key), catch: (cause) => stepFailed(step, cause) }),
+    ),
     Match.tag('Wait', ({ ms }) => Effect.sleep(ms)),
     Match.orElse((locatorStep) => runLocatorStep({ page, step: locatorStep })),
   )

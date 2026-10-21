@@ -59,12 +59,12 @@ export default defineFlow({ start: '/app/persons', as: 'admin' }, async ({ page,
 
 ## When it fails
 
-| Message | Do |
-|---|---|
-| `needs a user` | `--as <user>`, or `shot login --as <user>` once |
-| `app not running at …` | start the dev server in the background, then retry |
-| `logIn hook failed for …` | the user has no account, or the project's login changed: fix `shot.config.ts` |
-| `no section "X"; sections: …` | pick a listed title, or `--select` |
-| `redirected to /login…` | the session was renewed once and still bounced: the user lacks access |
-| `gh … cannot attach files` | update gh to 2.99 or later |
-| `no pull request for …` | push and create the PR first |
+| Message                       | Do                                                                            |
+| ----------------------------- | ----------------------------------------------------------------------------- |
+| `needs a user`                | `--as <user>`, or `shot login --as <user>` once                               |
+| `app not running at …`        | start the dev server in the background, then retry                            |
+| `logIn hook failed for …`     | the user has no account, or the project's login changed: fix `shot.config.ts` |
+| `no section "X"; sections: …` | pick a listed title, or `--select`                                            |
+| `redirected to /login…`       | the session was renewed once and still bounced: the user lacks access         |
+| `gh … cannot attach files`    | update gh to 2.99 or later                                                    |
+| `no pull request for …`       | push and create the PR first                                                  |

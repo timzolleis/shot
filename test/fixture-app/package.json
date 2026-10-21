@@ -6,12 +6,12 @@
   "exports": {
     ".": "./src/server.ts"
   },
-  "dependencies": {
-    "@shot/core": "workspace:*",
-    "@shot/axe": "workspace:*",
-    "@shot/github": "workspace:*"
-  },
   "scripts": {
     "start": "node src/server.ts"
+  },
+  "dependencies": {
+    "@shot/axe": "workspace:*",
+    "@shot/core": "workspace:*",
+    "@shot/github": "workspace:*"
   }
 }

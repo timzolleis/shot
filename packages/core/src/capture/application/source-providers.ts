@@ -1,6 +1,11 @@
 import { Context, Effect, Layer, Match, Option, type Scope } from 'effect'
 
-import type { AppHookFailedError, AppHookMissingError, AppNotRunningError, SessionLockTimeoutError } from '../../app/app-error.ts'
+import type {
+  AppHookFailedError,
+  AppHookMissingError,
+  AppNotRunningError,
+  SessionLockTimeoutError,
+} from '../../app/app-error.ts'
 import { openRouteSource, resolveRouteSource, type RouteSourceDeps } from '../../app/route-source-provider.ts'
 import type { Source, Variant } from '../domain/capture.ts'
 import {

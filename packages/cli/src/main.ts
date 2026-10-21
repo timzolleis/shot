@@ -14,7 +14,9 @@ const writeError = (line: string) => Effect.sync(() => process.stderr.write(`${l
  */
 export const main = () =>
   // Bare `shot` prints the help.
-  Command.runWith(shotCommand, { version: cliVersion })(process.argv.length > 2 ? process.argv.slice(2) : ['--help']).pipe(
+  Command.runWith(shotCommand, { version: cliVersion })(
+    process.argv.length > 2 ? process.argv.slice(2) : ['--help'],
+  ).pipe(
     Effect.provide(shotLayer(process.cwd())),
     Effect.catch((error) =>
       Effect.gen(function* () {

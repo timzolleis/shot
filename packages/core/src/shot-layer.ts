@@ -8,7 +8,10 @@ import { CaptureRunnerLayer } from './capture/application/capture-runner.ts'
 import { ShootTargetServiceLayer } from './capture/application/shoot-target-service.ts'
 import { SourceProvidersLayer } from './capture/application/source-providers.ts'
 import { CaptureChecksLayer } from './checks/capture-checks.ts'
-import { EvidencePublishersLayer, PublishEvidenceServiceLayer } from './evidence/application/publish-evidence-service.ts'
+import {
+  EvidencePublishersLayer,
+  PublishEvidenceServiceLayer,
+} from './evidence/application/publish-evidence-service.ts'
 import { RecordFlowServiceLayer } from './flow/application/record-flow-service.ts'
 import { PlaywrightBrowserLayer } from './infrastructure/browser.ts'
 import { FfmpegVideoEncoderLayer } from './infrastructure/ffmpeg-video-encoder.ts'
@@ -27,9 +30,7 @@ export const shotLayer = (cwd: string) => {
   const shotPlatform = Layer.mergeAll(platform, browser, store)
 
   const plugins = Layer.unwrap(
-    Effect.map(ShotConfig, (loaded) =>
-      Layer.mergeAll(Layer.empty, ...loaded.plugins.map((plugin) => plugin.layer)),
-    ),
+    Effect.map(ShotConfig, (loaded) => Layer.mergeAll(Layer.empty, ...loaded.plugins.map((plugin) => plugin.layer))),
   ).pipe(Layer.provide(shotPlatform))
 
   const runtime = PageRuntimeLayer

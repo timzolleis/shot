@@ -63,7 +63,13 @@ export const resolveRouteSource = ({
     })
 
     if (Option.isNone(user)) return yield* new UserMissingError({ path })
-    const defaultParams = Option.isNone(as) ? Option.getOrElse(Option.map(defaults, (found) => found.params), () => ({})) : {}
+
+    const defaultParams = Option.isNone(as)
+      ? Option.getOrElse(
+          Option.map(defaults, (found) => found.params),
+          () => ({}),
+        )
+      : {}
 
     return RouteSource.make({ path, user: user.value, params: { ...defaultParams, ...params } })
   })
@@ -95,7 +101,9 @@ export const openRouteSource = ({
 
     for (let attempt = 1; ; attempt++) {
       const session = { user: source.user, params: source.params }
-      const storageState = attempt === 1 ? yield* deps.sessions.getAppSession(session) : yield* deps.sessions.renewAppSession(session)
+
+      const storageState =
+        attempt === 1 ? yield* deps.sessions.getAppSession(session) : yield* deps.sessions.renewAppSession(session)
 
       const context = yield* deps.browser.newContext({
         ...contextOptions,
@@ -134,10 +142,9 @@ export const openRouteSource = ({
         await networkQuiet()
       })
 
-      const ready = yield* deps.hooks.waitUntilReady({ page, waitForLoad }).pipe(
-        Effect.timeoutOption(renderTimeoutMs),
-        Effect.result,
-      )
+      const ready = yield* deps.hooks
+        .waitUntilReady({ page, waitForLoad })
+        .pipe(Effect.timeoutOption(renderTimeoutMs), Effect.result)
 
       const landed = new URL(page.url())
 

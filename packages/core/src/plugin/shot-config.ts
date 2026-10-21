@@ -27,7 +27,11 @@ export interface AppConfig {
   /** Default: load, then the network quiet for 500 ms. */
   readonly waitUntilReady?: (page: Page) => Hook<void>
   /** Default: the context's colorScheme. */
-  readonly applyTheme?: (input: { readonly context: BrowserContext; readonly url: string; readonly mode: Mode }) => Hook<void>
+  readonly applyTheme?: (input: {
+    readonly context: BrowserContext
+    readonly url: string
+    readonly mode: Mode
+  }) => Hook<void>
   /** Default 'block' (A4). */
   readonly writes?: 'block' | 'allow'
 }
@@ -98,7 +102,10 @@ export const loadShotConfig = (cwd: string) =>
           Effect.flatMap((module) =>
             Effect.gen(function* () {
               if (!Predicate.isObject(module.default)) {
-                return yield* new ShotConfigInvalidError({ file, reason: 'the default export is not defineConfig({...})' })
+                return yield* new ShotConfigInvalidError({
+                  file,
+                  reason: 'the default export is not defineConfig({...})',
+                })
               }
 
               // SAFETY: `defineConfig` types the file; hooks and plugin layers cannot be decoded, so only "an object" is

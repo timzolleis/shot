@@ -172,8 +172,18 @@ const related = (a: Element, b: Element) => a.contains(b) || b.contains(a)
 const edgeItems = (root: Element): ReadonlyArray<EdgeItem> => [
   ...elementsIn(root)
     .filter((element) => element !== root && isVisual(element))
-    .map((element) => ({ element, kind: 'box' as const, rect: pageRect(element.getBoundingClientRect()), baseline: undefined })),
-  ...textRuns(root).map((run) => ({ element: run.element, kind: 'text' as const, rect: run.rect, baseline: run.baseline })),
+    .map((element) => ({
+      element,
+      kind: 'box' as const,
+      rect: pageRect(element.getBoundingClientRect()),
+      baseline: undefined,
+    })),
+  ...textRuns(root).map((run) => ({
+    element: run.element,
+    kind: 'text' as const,
+    rect: run.rect,
+    baseline: run.baseline,
+  })),
 ]
 
 /** Shared edges become guides; edges 1–3px apart between neighbours are near-misses. */
@@ -262,7 +272,8 @@ export const measureEdges = (root: Element) => {
       if (horizontalGap >= 0 && horizontalGap <= 48 && verticalGap < 0) {
         if (a.baseline !== undefined && b.baseline !== undefined) add('baseline', a.baseline, b.baseline)
 
-        if (a.kind === 'box' && b.kind === 'box') add('center-y', a.rect.y + a.rect.height / 2, b.rect.y + b.rect.height / 2)
+        if (a.kind === 'box' && b.kind === 'box')
+          add('center-y', a.rect.y + a.rect.height / 2, b.rect.y + b.rect.height / 2)
       }
     }
   }

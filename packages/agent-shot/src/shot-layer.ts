@@ -16,9 +16,12 @@ import { RecordFlowServiceLayer } from './flow/application/record-flow-service.t
 import { PlaywrightBrowserLayer } from './infrastructure/browser.ts'
 import { FfmpegVideoEncoderLayer } from './infrastructure/ffmpeg-video-encoder.ts'
 import { FileArtifactStoreLayer } from './infrastructure/file-artifact-store.ts'
+import { FileReviewStoreLayer } from './infrastructure/file-review-store.ts'
 import { PageRuntimeLayer } from './infrastructure/page-runtime.ts'
+import { NodeReviewServerLayer } from './infrastructure/review-server.ts'
 import { SheetsLayer } from './infrastructure/sheets.ts'
 import { ShotConfig, ShotConfigLayer } from './plugin/shot-config.ts'
+import { ReviewServiceLayer } from './review/application/review-service.ts'
 
 /** Everything a command needs, for the project whose config is nearest `cwd`. The browser launches on first use. */
 export const shotLayer = (cwd: string) => {
@@ -43,12 +46,15 @@ export const shotLayer = (cwd: string) => {
   const runner = CaptureRunnerLayer.pipe(Layer.provide([providers, runtime, checks, sheets, shotPlatform]))
   const encoder = FfmpegVideoEncoderLayer.pipe(Layer.provide(platform))
   const publishers = EvidencePublishersLayer.pipe(Layer.provide([plugins, shotPlatform]))
+  const reviewStore = FileReviewStoreLayer.pipe(Layer.provide(shotPlatform))
+  const reviewServer = NodeReviewServerLayer.pipe(Layer.provide(shotPlatform))
 
   return Layer.mergeAll(
     ShootTargetServiceLayer.pipe(Layer.provide([providers, runner, shotPlatform])),
     RecordFlowServiceLayer.pipe(Layer.provide([providers, encoder, shotPlatform])),
     PublishEvidenceServiceLayer.pipe(Layer.provide([publishers, shotPlatform])),
     LogInServiceLayer.pipe(Layer.provide([hooks, sessions, shotPlatform])),
+    ReviewServiceLayer.pipe(Layer.provide([reviewStore, reviewServer, sheets, shotPlatform])),
     shotPlatform,
   )
 }

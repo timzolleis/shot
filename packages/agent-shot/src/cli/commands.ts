@@ -1,5 +1,6 @@
 import {
   ArtifactStore,
+  CapturedResult,
   CaptureResult,
   defaultShootFlags,
   FlowResult,
@@ -9,6 +10,8 @@ import {
   outlineText,
   PublishEvidenceService,
   RecordFlowService,
+  ReviewFeedback,
+  ReviewService,
   ShootTargetService,
   type ShootFlags,
   type Size,
@@ -179,6 +182,19 @@ const shootFlagsFromInput = (input: ShootInput): ShootFlags => ({
 })
 
 const encodeResultsJson = Schema.encodeSync(Schema.toCodecJson(Schema.Array(CaptureResult)))
+
+/** The element map is for `shot review`, in the manifest: printing it would bury the results an agent reads. */
+const withoutElementMap = (result: CaptureResult): CaptureResult =>
+  Predicate.isTagged(result, 'CapturedResult')
+    ? CapturedResult.make({
+        capture: result.capture,
+        key: result.key,
+        file: result.file,
+        measurements: result.measurements,
+        findings: result.findings,
+      })
+    : result
+
 const encodeFlowJson = Schema.encodeSync(Schema.toCodecJson(FlowResult))
 
 export const shot = Command.make('shot', shootFlags, (input) =>
@@ -194,7 +210,7 @@ export const shot = Command.make('shot', shootFlags, (input) =>
       runChecks: input.check,
     })
 
-    if (input.json) yield* printLine(JSON.stringify(encodeResultsJson(results), null, 2))
+    if (input.json) yield* printLine(JSON.stringify(encodeResultsJson(results.map(withoutElementMap)), null, 2))
     else yield* printCaptureResults(results)
 
     if (anyErrorFinding(results)) process.exitCode = 1
@@ -296,6 +312,81 @@ const publish = Command.make(
     }),
 ).pipe(Command.withDescription("Publish the session's evidence to the PR body, replacing the last publish."))
 
+const encodeFeedbackJson = Schema.encodeSync(Schema.toCodecJson(ReviewFeedback))
+
+const review = Command.make(
+  'review',
+  {
+    labels: Argument.String('label').pipe(
+      Argument.withDescription('a label to put up for review, in the order shown; at least one'),
+      Argument.atLeast(1),
+    ),
+    base: Flag.String('base').pipe(
+      Flag.withDescription('a label to compare against: shown first, takes no vote'),
+      Flag.optional,
+    ),
+    sheet: Flag.String('sheet').pipe(
+      Flag.withDescription('only sheets whose title contains this (case-insensitive); repeatable'),
+      Flag.atLeast(0),
+    ),
+    size: sizeText('only this size; repeatable').pipe(Flag.atLeast(0)),
+    ask: Flag.String('ask').pipe(Flag.withDescription('the question shown at the top'), Flag.optional),
+    describe: Flag.KeyValuePair('describe').pipe(
+      Flag.withDescription('a line under a label, label=text (its direction and cost); repeatable'),
+      Flag.withDefault({}),
+    ),
+    noOpen: Flag.Boolean('no-open').pipe(
+      Flag.withDescription('print the URL instead of opening the browser'),
+      Flag.withDefault(false),
+    ),
+    json: jsonFlag,
+  },
+  ({ labels, base, sheet, size, ask, describe, noOpen, json }) =>
+    Effect.gen(function* () {
+      const service = yield* ReviewService
+
+      const outcome = yield* service.reviewLabels({
+        request: { labels, base, sheets: sheet, sizes: size, ask, describe },
+        open: !noOpen,
+        onListening: (url) =>
+          Effect.sync(() => process.stderr.write(`review at ${url}\nwaiting for the user to send or close it…\n`)),
+      })
+
+      if (Option.isNone(outcome.round)) {
+        if (json) yield* printLine(JSON.stringify({ decision: outcome.decision }))
+        process.stderr.write('closed without feedback\n')
+        process.exitCode = 1
+
+        return
+      }
+
+      const round = outcome.round.value
+
+      if (json) {
+        yield* printLine(JSON.stringify(encodeFeedbackJson(round.feedback), null, 2))
+
+        return
+      }
+
+      yield* printLine(`# ${yield* displayPath(round.markdownFile)}`)
+      yield* printLine(round.markdown.trimEnd())
+    }),
+).pipe(
+  Command.withDescription(
+    'Put labels up for the user: side by side, votes, drawings; blocks until they send it, prints their feedback.',
+  ),
+  Command.withExamples([
+    {
+      command: 'shot review quiet editorial dense --base before --ask "Pick a density for People"',
+      description: 'three labels against before',
+    },
+    {
+      command: 'shot review quiet dense --sheet People --size phone --describe quiet="Lowest weight; least memorable"',
+      description: 'one sheet at one size, with a line under quiet',
+    },
+  ]),
+)
+
 const login = Command.make(
   'login',
   { as: Flag.String('as').pipe(Flag.withDescription('an alias from the config, or an email')), param: paramFlag },
@@ -339,4 +430,6 @@ const packageJson: { version: string } = JSON.parse(
 
 export const cliVersion = packageJson.version
 
-export const shotCommand = shot.pipe(Command.withSubcommands([outline, flow, publish, login, logout, clean, skill]))
+export const shotCommand = shot.pipe(
+  Command.withSubcommands([outline, flow, publish, review, login, logout, clean, skill]),
+)

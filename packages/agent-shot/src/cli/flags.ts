@@ -9,8 +9,8 @@ export const FillValue = Schema.String.pipe(
 /** Label names become directories next to `manifest/`, `flows/` and `report/`. */
 export const LabelValue = Schema.String.pipe(
   Schema.check(
-    Schema.isPattern(/^(?!(manifest|flows|report)$)[a-z0-9][a-z0-9._-]*$/i, {
-      message: 'letters, digits, ".", "_" and "-", not manifest, flows or report',
+    Schema.isPattern(/^(?!(manifest|flows|report|review)$)[a-z0-9][a-z0-9._-]*$/i, {
+      message: 'letters, digits, ".", "_" and "-", not manifest, flows, report or review',
     }),
   ),
 )

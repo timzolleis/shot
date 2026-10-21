@@ -84,4 +84,16 @@ export { PublishEvidenceService } from './evidence/application/publish-evidence-
 
 export { LogInService } from './app/log-in-service.ts'
 
+export { ReviewService } from './review/application/review-service.ts'
+
+export type { ReviewOutcome, ReviewedRound } from './review/application/review-service.ts'
+
+export * from './review/domain/review.ts'
+
+export * from './review/domain/review-error.ts'
+
+export * from './review/domain/review-feedback.ts'
+
+export * from './review/domain/review-sheets.ts'
+
 export { github } from './github/github-publisher.ts'

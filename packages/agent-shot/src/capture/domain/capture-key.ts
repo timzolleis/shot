@@ -43,12 +43,29 @@ export const slugFromText = (text: string): string =>
     .replaceAll(/^-|-$/g, '')
     .slice(0, 40)
 
-/** `route-app-persons`, `url-example-com-docs`. */
+/** A file URL's last path segment, query and hash: `compare.html?variant=c`. The directories stay local. */
+const fileNameOfUrl = (url: string): string | undefined => {
+  if (!url.startsWith('file://')) return undefined
+  const { pathname, search, hash } = new URL(url)
+
+  return `${decodeURIComponent(pathname.split('/').at(-1) ?? '')}${search}${hash}`
+}
+
+/** `route-app-persons`, `url-example-com-docs`, `file-compare-html`. */
 export const sourceSlug = (source: Source): string =>
   Match.valueTags(source, {
     RouteSource: ({ path }) => ['route', slugFromText(path)].filter((part) => part !== '').join('-'),
-    UrlSource: ({ url }) =>
-      ['url', slugFromText(url.replace(/^https?:\/\//, ''))].filter((part) => part !== '').join('-'),
+    UrlSource: ({ url }) => {
+      const fileName = fileNameOfUrl(url)
+
+      return (
+        fileName === undefined
+          ? ['url', slugFromText(url.replace(/^https?:\/\//, ''))]
+          : ['file', slugFromText(fileName)]
+      )
+        .filter((part) => part !== '')
+        .join('-')
+    },
   })
 
 const partSlug = (part: Part): string | undefined =>
@@ -144,12 +161,12 @@ export const captureFileExtension = (output: Output): 'png' | 'json' | 'txt' =>
     AriaTree: () => 'txt' as const,
   })
 
-/** For people: `/path as user`, or the URL. */
+/** For people: `/path as user`, the URL, or a file's name. */
 export const sourceDescription = (source: Source): string =>
   Match.valueTags(source, {
     RouteSource: ({ path, user, params }) =>
       [`${path} as ${user}`, ...Object.entries(params).map(([name, value]) => `${name}=${value}`)].join(' '),
-    UrlSource: ({ url }) => url,
+    UrlSource: ({ url }) => fileNameOfUrl(url) ?? url,
   })
 
 export const partDescription = (part: Part): string =>

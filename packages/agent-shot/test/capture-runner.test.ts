@@ -7,7 +7,7 @@ import type { Server } from 'node:http'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
-import { Fill, Key } from '../src/capture/domain/capture.ts'
+import { Fill, Key, UrlSource } from '../src/capture/domain/capture.ts'
 import {
   defaultShootFlags,
   RecordFlowService,
@@ -132,6 +132,32 @@ describe('CaptureRunner against the fixture app', () => {
 
     expect(sidebars.map((result) => sizeDescription(result.capture.variant.size))).toEqual(['1440×900'])
     expect(results.some((result) => sizeDescription(result.capture.variant.size) === 'iPhone 15')).toBe(true)
+  })
+
+  it('./pages/compare.html?variant=c → shot as a file URL, keyed by its file name; a missing file → SourceNotFoundError', async () => {
+    const results = await shoot('./pages/compare.html?variant=c')
+
+    expect(results.length).toBeGreaterThan(0)
+    expect(results.every((result) => Predicate.isTagged(result, 'CapturedResult'))).toBe(true)
+    expect(results[0]!.capture.source).toEqual(
+      UrlSource.make({ url: `file://${fixtureDir}/pages/compare.html?variant=c` }),
+    )
+    expect(results[0]!.key).toMatch(/^file-compare-html-variant-c--/)
+
+    const missing = await runtime.runPromise(
+      Effect.flatMap(ShootTargetService, (service) =>
+        service.shootTarget({
+          raw: './pages/missing.html',
+          as: Option.none(),
+          params: {},
+          label: '',
+          flags: defaultShootFlags,
+          runChecks: false,
+        }),
+      ).pipe(Effect.flip),
+    )
+
+    expect(missing._tag).toBe('SourceNotFoundError')
   })
 
   it('--size iphone → usage error naming the closest sizes, exit 2 (16)', async () => {

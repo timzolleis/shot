@@ -47,7 +47,7 @@ mkdir -p .claude/skills/shot && npx shot skill > .claude/skills/shot/SKILL.md
 
 ## Configure
 
-URLs work without any config: `shot https://example.com`. To shoot your own app as a logged-in user, add a `shot.config.ts` at the project root:
+URLs and local HTML files work without any config: `shot https://example.com`, `shot ./compare.html`. To shoot your own app as a logged-in user, add a `shot.config.ts` at the project root:
 
 ```ts
 import { axe } from '@agent-shot/axe'

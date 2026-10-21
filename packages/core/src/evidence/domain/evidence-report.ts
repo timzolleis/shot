@@ -151,7 +151,7 @@ const plural = (count: number, one: string) => `${count} ${count === 1 ? one : `
 export const evidenceMarkdownFromReport = (report: EvidenceReport): string => {
   const lines: Array<string> = ['## Shot evidence', '']
   lines.push(
-    `${plural(report.sheets.length, 'capture')}, ${plural(report.flows.length, 'flow')}; ${plural(report.summary.errors, 'error')}, ${plural(report.summary.warnings, 'warning')}.`,
+    `${plural(report.summary.captures, 'capture')}, ${plural(report.flows.length, 'flow')}; ${plural(report.summary.errors, 'error')}, ${plural(report.summary.warnings, 'warning')}.`,
     '',
   )
   for (const sheet of report.sheets) {

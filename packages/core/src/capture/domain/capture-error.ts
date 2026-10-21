@@ -52,8 +52,9 @@ export class ConflictingOutputsError extends Data.TaggedError('ConflictingOutput
   readonly outputs: ReadonlyArray<string>
 }> {}
 
-export class UnknownDeviceError extends Data.TaggedError('UnknownDeviceError')<{
-  readonly device: string
+/** Not an alias, `WxH` or a Playwright device (E16). */
+export class UnknownSizeError extends Data.TaggedError('UnknownSizeError')<{
+  readonly text: string
   readonly closest: ReadonlyArray<string>
 }> {}
 
@@ -73,5 +74,4 @@ export type CaptureFailure =
   | AmbiguousSectionError
   | SelectionNotFoundError
   | StepFailedError
-  | UnknownDeviceError
   | LoupeTooLargeError

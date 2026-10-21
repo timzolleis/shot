@@ -11,9 +11,8 @@ export const FlowHeader = Schema.Struct({
   as: Schema.optionalKey(Schema.String),
   params: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
   mode: Schema.optionalKey(Mode),
-  device: Schema.optionalKey(Schema.String),
-  width: Schema.optionalKey(Schema.Number),
-  height: Schema.optionalKey(Schema.Number),
+  /** `phone`, `tablet`, `laptop`, `desktop`, `WxH` or a Playwright device; default laptop; `--size` wins (E21). */
+  size: Schema.optionalKey(Schema.String),
 })
 
 export type FlowHeader = typeof FlowHeader.Type

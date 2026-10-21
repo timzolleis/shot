@@ -1,6 +1,13 @@
 import { describe, expect, it } from '@effect/vitest'
-import { ArtifactStore, evidenceStartMarker, type EvidenceReport, type ProcessOutput } from '@shot/core'
-import { Effect, Layer, Option } from 'effect'
+import {
+  ArtifactStore,
+  defaultSize,
+  evidenceStartMarker,
+  type EvidenceReport,
+  type ProcessOutput,
+  ShotCell,
+} from '@shot/core'
+import { Effect, Layer } from 'effect'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -14,9 +21,16 @@ const report: EvidenceReport = {
       key: 'route-app-persons--admin-light-9c41d0',
       title: '/app/persons as admin@example.org › page (light)',
       file: '.shots/s/report/route-app-persons--admin-light-9c41d0.png',
-      columns: [
-        { label: 'before', still: Option.some('.shots/s/before/route-app-persons--admin-light-9c41d0.png') },
-        { label: 'after', still: Option.some('.shots/s/after/route-app-persons--admin-light-9c41d0.png') },
+      sizes: [defaultSize],
+      rows: [
+        {
+          label: 'before',
+          cells: [ShotCell.make({ file: '.shots/s/before/route-app-persons--admin-light-9c41d0.png', scale: 1 })],
+        },
+        {
+          label: 'after',
+          cells: [ShotCell.make({ file: '.shots/s/after/route-app-persons--admin-light-9c41d0.png', scale: 1 })],
+        },
       ],
     },
   ],

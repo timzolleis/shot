@@ -1,19 +1,13 @@
-import { Effect, FileSystem, Layer, Option, Schema } from 'effect'
+import { Effect, FileSystem, Layer, Match, Option, Predicate, Schema } from 'effect'
 import path from 'node:path'
 
 import { ArtifactStore } from '../artifact/artifact-store.ts'
-import {
-  captureFileFromKey,
-  labelDirFromSession,
-  labelDisplayName,
-  type SessionLabel,
-  sessionNameFromEnv,
-} from '../artifact/session.ts'
+import { captureFileFromKey, labelDirFromSession, type SessionLabel, sessionNameFromEnv } from '../artifact/session.ts'
 import { CaptureResult } from '../capture/domain/capture-result.ts'
-import { evidenceMarkdownFromReport } from '../evidence/domain/evidence-report.ts'
-import { FlowResult } from '../flow/domain/flow.ts'
+import { evidenceMarkdownFromReport, sheetGridFromSheet } from '../evidence/domain/evidence-report.ts'
+import { flowKey, FlowResult } from '../flow/domain/flow.ts'
 import { ShotConfig } from '../plugin/shot-config.ts'
-import { Sheets } from './sheets.ts'
+import { type GridCell, Sheets } from './sheets.ts'
 
 const CaptureResultJson = Schema.fromJsonString(Schema.toCodecJson(CaptureResult))
 const FlowResultJson = Schema.fromJsonString(Schema.toCodecJson(FlowResult))
@@ -119,16 +113,19 @@ export const FileArtifactStoreLayer = Layer.effect(
           (result) => writeAtomic(path.join(manifestDir(label), `${result.key}.json`), encodeCaptureResult(result)),
           { discard: true },
         ),
-      makeFlowDir: ({ label, name }) =>
+      makeFlowDir: ({ label, flow }) =>
         Effect.gen(function* () {
-          const dir = path.join(labelDirFromSession({ sessionDir, label }), 'flows', name)
+          const dir = path.join(labelDirFromSession({ sessionDir, label }), 'flows', flowKey(flow))
           yield* fs.remove(absolutePath(dir), { recursive: true, force: true })
           yield* fs.makeDirectory(absolutePath(dir), { recursive: true })
 
           return dir
         }).pipe(Effect.orDie),
       writeFlowResult: ({ label, flowResult }) =>
-        writeAtomic(path.join(manifestDir(label), `flow--${flowResult.flow.name}.json`), encodeFlowResult(flowResult)),
+        writeAtomic(
+          path.join(manifestDir(label), `flow--${flowKey(flowResult.flow)}.json`),
+          encodeFlowResult(flowResult),
+        ),
       readSession: () =>
         Effect.gen(function* () {
           const root = absolutePath(sessionDir)
@@ -164,17 +161,26 @@ export const FileArtifactStoreLayer = Layer.effect(
       writeReport: (report) =>
         Effect.gen(function* () {
           for (const sheet of report.sheets) {
-            const stills = sheet.columns.flatMap((column) =>
-              Option.toArray(Option.map(column.still, (file) => ({ file, label: labelDisplayName(column.label) }))),
+            // One still: the sheet shows it as is.
+            if (
+              sheet.rows.flatMap((row) => row.cells).filter((cell) => Predicate.isTagged(cell, 'ShotCell')).length < 2
             )
+              continue
 
-            if (stills.length < 2) continue
+            const grid = sheetGridFromSheet(sheet)
 
-            const cells = yield* Effect.forEach(stills, ({ file, label }) =>
-              fs.readFile(absolutePath(file)).pipe(Effect.map((png) => ({ png, label }))),
+            const rows = yield* Effect.forEach(grid.rows, (row) =>
+              Effect.forEach(row.cells, (cell) =>
+                Match.valueTags(cell, {
+                  ShotCell: ({ file, scale }) =>
+                    fs.readFile(absolutePath(file)).pipe(Effect.map((png): GridCell => ({ png, scale }))),
+                  FailedCell: () => Effect.succeed<GridCell>({ note: 'failed' }),
+                  MissingCell: () => Effect.succeed<GridCell>({ note: '—' }),
+                }),
+              ).pipe(Effect.map((cells) => ({ label: row.label, cells }))),
             ).pipe(Effect.orDie)
 
-            const png = yield* sheets.composeSheet({ cells, title: sheet.title, columns: cells.length })
+            const png = yield* sheets.composeGrid({ title: sheet.title, columns: grid.columns, rows })
             yield* writeAtomic(absolutePath(sheet.file), png)
           }
 

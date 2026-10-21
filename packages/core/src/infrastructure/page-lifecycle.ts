@@ -2,7 +2,8 @@ import { Effect, Match, Option } from 'effect'
 import { type BrowserContext, type BrowserContextOptions, devices, type Page, type Request } from 'playwright'
 
 import type { Source, Step, Variant } from '../capture/domain/capture.ts'
-import { StepFailedError, UnknownDeviceError } from '../capture/domain/capture-error.ts'
+import { StepFailedError } from '../capture/domain/capture-error.ts'
+import type { KnownDevice } from '../capture/domain/size.ts'
 import type { Determinism } from '../plugin/shot-config.ts'
 
 /**
@@ -25,71 +26,39 @@ export interface ReadyPage {
 export const renderTimeoutMs = 20_000
 const settleCapMs = 2_000
 
-const editDistance = (a: string, b: string): number => {
-  let previous = Array.from({ length: b.length + 1 }, (_, index) => index)
+/** Every device `--size` accepts, as Playwright names them (E16). */
+export const playwrightDevices: ReadonlyArray<KnownDevice> = Object.entries(devices).map(([name, device]) => ({
+  name,
+  width: device.viewport.width,
+  height: device.viewport.height,
+}))
 
-  for (let i = 1; i <= a.length; i++) {
-    const current = [i]
-
-    for (let j = 1; j <= b.length; j++) {
-      current[j] = Math.min(previous[j]! + 1, current[j - 1]! + 1, previous[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1))
-    }
-
-    previous = current
-  }
-
-  return previous[b.length]!
-}
-
-/** The `count` candidates nearest to `needle`, for "did you mean". */
-export const closestCandidates = (
-  needle: string,
-  candidates: ReadonlyArray<string>,
-  count = 5,
-): ReadonlyArray<string> =>
-  candidates
-    .map((candidate) => ({ candidate, distance: editDistance(needle.toLowerCase(), candidate.toLowerCase()) }))
-    .sort((a, b) => a.distance - b.distance)
-    .slice(0, count)
-    .map(({ candidate }) => candidate)
-
-export const contextOptionsFromVariant = (variant: Variant): Effect.Effect<BrowserContextOptions, UnknownDeviceError> =>
+/** A decoded size names a known device; one Playwright dropped since (an old manifest) dies. */
+export const contextOptionsFromVariant = (variant: Variant): Effect.Effect<BrowserContextOptions> =>
   Effect.gen(function* () {
-    const device = yield* Option.match(variant.device, {
-      onNone: () => Effect.succeed(undefined),
-      onSome: (requested) => {
-        const name = Object.keys(devices).find((candidate) => candidate.toLowerCase() === requested.toLowerCase())
-
-        return name === undefined
-          ? Effect.fail(
-              new UnknownDeviceError({
-                device: requested,
-                closest: closestCandidates(
-                  requested,
-                  Object.keys(devices).filter((candidate) => !candidate.endsWith('landscape')),
-                ),
-              }),
-            )
-          : Effect.succeed(devices[name])
-      },
-    })
-
-    const viewport = device?.viewport ?? { width: 1280, height: 900 }
-
-    const options: BrowserContextOptions = {
-      viewport: {
-        width: Option.getOrElse(variant.width, () => viewport.width),
-        height: Option.getOrElse(variant.height, () => viewport.height),
-      },
+    const base: BrowserContextOptions = {
       deviceScaleFactor: variant.scale,
       reducedMotion: variant.reducedMotion ? 'reduce' : 'no-preference',
       colorScheme: variant.mode,
       ignoreHTTPSErrors: true,
     }
 
-    if (device === undefined) return options
+    return yield* Match.valueTags(variant.size, {
+      ScreenSize: ({ width, height }) => Effect.succeed({ ...base, viewport: { width, height } }),
+      DeviceSize: ({ device: name, width, height }) => {
+        const device = devices[name]
 
-    return { ...options, userAgent: device.userAgent, isMobile: device.isMobile, hasTouch: device.hasTouch }
+        return device === undefined
+          ? Effect.die(`Playwright has no device "${name}"`)
+          : Effect.succeed({
+              ...base,
+              viewport: { width, height },
+              userAgent: device.userAgent,
+              isMobile: device.isMobile,
+              hasTouch: device.hasTouch,
+            })
+      },
+    })
   })
 
 const hideCaretAndScrollbars = () => {

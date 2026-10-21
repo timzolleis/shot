@@ -13,8 +13,9 @@ Shoot what you changed, before and after; check it; record the flow; publish the
 2. Shoot the old state: `git stash -u && shot <path> --as <user> --label before [flags]`. Complete when it printed a path per capture.
 3. Shoot the new state with the same flags: `git stash pop && shot <path> --as <user> --label after [flags]`. The same capture gets the same file name under `before/` and `after/`.
 4. Read both PNGs. Complete when you can name what changed and what did not.
+   For layout changes, shoot every size the change affects: `--size phone --size desktop`. Read each size's PNG; a phone layout is its own evidence.
 5. For an interaction, write or reuse a flow (`shots/<name>.flow.ts`) and run `shot flow <name> --label after`.
-6. `shot publish` puts every capture, flow and finding of the session into the PR body, replacing the last publish. Complete when it printed the PR's URL.
+6. `shot publish` puts every capture, flow and finding of the session into the PR body, replacing the last publish: one sheet per capture, a row per label and a column per size. Complete when it printed the PR's URL.
 
 Shot does not run git: you stash, it shoots. A dev server with hot reload serves the stashed state too; one that builds once needs a restart.
 
@@ -27,7 +28,9 @@ shot /app/persons --as admin --mode both      light and dark
 --section "Profile"  --select '#save'         part: a section by title, or the first visible match (+16px)
 --select '[data-slot=card]:has-text("Billing")' --name billing
                                               any Playwright selector (role=, :has-text()); --name keeps the file name stable
---viewport  --mobile  --device "Pixel 8"  --width 390
+--size phone --size desktop                   sizes, repeatable: phone, tablet, laptop (default), desktop, WxH (390x844),
+                                              or a Playwright device ("Pixel 8"); --mobile = --size phone
+--viewport                                    only the viewport
 --click a  --fill '#name=Ada'  --key Enter  --hover b  --focus c  --press d  --wait 300
                                               scene, in order; hover, focus and press run last and hold
 --overlay boxes --overlay gaps (also edges, type, grid)  --loupe 4
@@ -40,6 +43,7 @@ shot /app/persons --as admin --mode both      light and dark
 - Output: one path per file on stdout, findings one line each (`error`/`warn`, check, target, message). Measurements and aria trees print after their path. Progress goes to stderr. `--json` prints results as JSON.
 - Exit 1: a render finding (the page 500s, redirects, times out, a step or part fails), an error finding, or a domain error. Exit 2: a usage mistake.
 - App writes (POST, PUT, PATCH, DELETE to the app) are blocked and reported as console findings, so scenes cannot change dev data.
+- Sizes: each size reads its own sections, so a section the layout hides on phones is not shot there, with no error. The `target` check runs on devices only. The file name holds the size (`…-iphone-15-light-…`).
 - Files: `.shots/<session>/[<label>/]<source>--<slug>-<hash>.png`; the session is `$SHOT_SESSION`, else your agent session id. A rerun overwrites. `shot clean` removes the session.
 
 ## Flows
@@ -55,16 +59,19 @@ export default defineFlow({ start: '/app/persons', as: 'admin' }, async ({ page,
 })
 ```
 
+A flow runs at one size: `size: 'phone'` in its header, or `shot flow <name> --size phone`; default laptop. Each size gets its own directory.
+
 `shot flow invite-parent` writes a still per step, an H.264 video within GitHub's limit, and `trace.zip` (`npx playwright show-trace`). A failing step stops the flow: you get the stills up to it, the video so far, and the step's error; exit 1.
 
 ## When it fails
 
-| Message                       | Do                                                                            |
-| ----------------------------- | ----------------------------------------------------------------------------- |
-| `needs a user`                | `--as <user>`, or `shot login --as <user>` once                               |
-| `app not running at …`        | start the dev server in the background, then retry                            |
-| `logIn hook failed for …`     | the user has no account, or the project's login changed: fix `shot.config.ts` |
-| `no section "X"; sections: …` | pick a listed title, or `--select`                                            |
-| `redirected to /login…`       | the session was renewed once and still bounced: the user lacks access         |
-| `gh … cannot attach files`    | update gh to 2.99 or later                                                    |
-| `no pull request for …`       | push and create the PR first                                                  |
+| Message                         | Do                                                                            |
+| ------------------------------- | ----------------------------------------------------------------------------- |
+| `needs a user`                  | `--as <user>`, or `shot login --as <user>` once                               |
+| `app not running at …`          | start the dev server in the background, then retry                            |
+| `logIn hook failed for …`       | the user has no account, or the project's login changed: fix `shot.config.ts` |
+| `no section "X"; sections: …`   | pick a listed title, or `--select`                                            |
+| `Invalid value for flag --size` | pick a listed size, or `WxH`                                                  |
+| `redirected to /login…`         | the session was renewed once and still bounced: the user lacks access         |
+| `gh … cannot attach files`      | update gh to 2.99 or later                                                    |
+| `no pull request for …`         | push and create the PR first                                                  |

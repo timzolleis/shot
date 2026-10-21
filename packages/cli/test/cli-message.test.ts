@@ -18,7 +18,7 @@ const errors: ReadonlyArray<ShotError> = [
   new core.SelectionNotFoundError({ selector: '#go', reason: 'no element matches (waited 2s)' }),
   new core.StepFailedError({ step: 'submit', reason: 'no element matches' }),
   new core.ConflictingOutputsError({ outputs: ['--frames', '--measure'] }),
-  new core.UnknownDeviceError({ device: 'iPhone 99', closest: ['iPhone 15'] }),
+  new core.UnknownSizeError({ text: 'iPhone 99', closest: ['iPhone 15'] }),
   new core.LoupeTooLargeError({ factor: 8, width: 4000, height: 300 }),
   new core.AppHookMissingError({ hook: 'app.logIn' }),
   new core.AppNotRunningError({ url: 'https://feat-x.app.localhost' }),

@@ -25,6 +25,7 @@ import {
   sourceDescription,
 } from '../domain/capture-key.ts'
 import { CapturedResult, type CaptureResult, FailedCaptureResult } from '../domain/capture-result.ts'
+import { sizeDescription } from '../domain/size.ts'
 import {
   collapsedFindings,
   consoleFindingsFromErrors,
@@ -384,7 +385,7 @@ export const CaptureRunnerLayer = Layer.effect(
 
                   if (groups.size > 1) {
                     process.stderr.write(
-                      `[${done}/${groups.size}] ${sourceDescription(group[0]!.source)} ${group[0]!.variant.mode}\n`,
+                      `[${done}/${groups.size}] ${sourceDescription(group[0]!.source)} ${sizeDescription(group[0]!.variant.size)} ${group[0]!.variant.mode}\n`,
                     )
                   }
                 }),

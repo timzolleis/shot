@@ -8,7 +8,15 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 
 import { Fill, Key } from '../src/capture/domain/capture.ts'
-import { defaultShootFlags, RecordFlowService, ShootTargetService, shotLayer } from '../src/index.ts'
+import {
+  defaultShootFlags,
+  RecordFlowService,
+  ShootTargetService,
+  playwrightDevices,
+  shotLayer,
+  sizeAliases,
+  sizeDescription,
+} from '../src/index.ts'
 
 /** Adapter cases against the fixture app: a real browser, real files under test/fixture-app/.shots/. */
 
@@ -47,6 +55,18 @@ const shoot = (raw: string, flags = defaultShootFlags) =>
     ),
   )
 
+describe('sizeAliases', () => {
+  it("phone and tablet have Playwright's viewports (16)", () => {
+    for (const size of [sizeAliases.phone, sizeAliases.tablet]) {
+      expect(playwrightDevices.find((device) => device.name === sizeDescription(size))).toEqual({
+        name: sizeDescription(size),
+        width: size.width,
+        height: size.height,
+      })
+    }
+  })
+})
+
 describe('CaptureRunner against the fixture app', () => {
   it('page answers 500 → FailedCaptureResult, render finding; the other source still captured (3)', async () => {
     const [broken, persons] = await Promise.all([shoot('/broken'), shoot('/app/persons')])
@@ -78,6 +98,39 @@ describe('CaptureRunner against the fixture app', () => {
     expect(results.every((result) => Predicate.isTagged(result, 'CapturedResult'))).toBe(true)
   })
 
+  it('/app/persons at phone and desktop → Sidebar shot at desktop only, no error (19)', async () => {
+    const results = await shoot('/app/persons', {
+      ...defaultShootFlags,
+      sizes: [sizeAliases.phone, sizeAliases.desktop],
+    })
+
+    expect(results.every((result) => Predicate.isTagged(result, 'CapturedResult'))).toBe(true)
+
+    const sidebars = results.filter(
+      (result) => Predicate.isTagged(result.capture.part, 'Section') && result.capture.part.title === 'Sidebar',
+    )
+
+    expect(sidebars.map((result) => sizeDescription(result.capture.variant.size))).toEqual(['1440×900'])
+    expect(results.some((result) => sizeDescription(result.capture.variant.size) === 'iPhone 15')).toBe(true)
+  })
+
+  it('--size iphone → usage error naming the closest sizes, exit 2 (16)', async () => {
+    const failed = await promisify(execFile)(
+      process.execPath,
+      [bin, '/app/persons', '--as', 'admin', '--size', 'iphone'],
+      {
+        cwd: fixtureDir,
+        env: { ...process.env, FIXTURE_URL: appUrl },
+      },
+    ).then(
+      () => ({ code: 0, stderr: '' }),
+      (error: { readonly code: number; readonly stderr: string }) => error,
+    )
+
+    expect(failed.code).toBe(2)
+    expect(failed.stderr).toContain('closest: phone, iPhone')
+  })
+
   it('two processes, same user → logIn hook called once (14)', async () => {
     rmSync(path.join(fixtureDir, '.shots', 'auth'), { recursive: true, force: true })
     const before = await logins()
@@ -92,21 +145,34 @@ describe('CaptureRunner against the fixture app', () => {
     const outputs = await Promise.all([run(), run()])
     expect(await logins()).toBe(before + 1)
     expect(outputs.map((output) => output.stdout.trim())).toEqual([
-      expect.stringMatching(/route-app-persons--viewport-admin-light-[0-9a-f]{6}\.png$/),
-      expect.stringMatching(/route-app-persons--viewport-admin-light-[0-9a-f]{6}\.png$/),
+      expect.stringMatching(/route-app-persons--viewport-admin-1280x900-light-[0-9a-f]{6}\.png$/),
+      expect.stringMatching(/route-app-persons--viewport-admin-1280x900-light-[0-9a-f]{6}\.png$/),
     ])
   })
 })
 
 describe('RecordFlowService against the fixture app', () => {
   const record = (flow: string) =>
-    runtime.runPromise(Effect.flatMap(RecordFlowService, (service) => service.recordFlow({ flow, label: '' })))
+    runtime.runPromise(
+      Effect.flatMap(RecordFlowService, (service) => service.recordFlow({ flow, label: '', size: Option.none() })),
+    )
 
   it('3 steps pass → CompletedFlow, 3 stills, 1 video (7)', async () => {
     const result = await record('invite-parent')
     expect(result._tag).toBe('CompletedFlow')
     expect(result.stills.map((still) => still.step)).toEqual(['open invite', 'fill email', 'submit'])
-    expect(result.video).toMatch(/flows\/invite-parent\/invite-parent\.mp4$/)
+    expect(result.video).toMatch(/flows\/invite-parent--1280x900\/invite-parent\.mp4$/)
+  })
+
+  it('--size phone → runs at iPhone 15, in its own directory (21)', async () => {
+    const result = await runtime.runPromise(
+      Effect.flatMap(RecordFlowService, (service) =>
+        service.recordFlow({ flow: 'invite-parent', label: '', size: Option.some(sizeAliases.phone) }),
+      ),
+    )
+
+    expect(result.flow.size).toEqual(sizeAliases.phone)
+    expect(result.video).toMatch(/flows\/invite-parent--iphone-15\/invite-parent\.mp4$/)
   })
 
   it('a failing step stops the flow: the stills up to it, the video so far, the error (8)', async () => {

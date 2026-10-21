@@ -2,7 +2,7 @@ import { Context, type Effect, type Option, type Schema } from 'effect'
 
 import type { CaptureResult } from '../capture/domain/capture-result.ts'
 import type { EvidenceReport } from '../evidence/domain/evidence-report.ts'
-import type { FlowResult } from '../flow/domain/flow.ts'
+import type { Flow, FlowResult } from '../flow/domain/flow.ts'
 import type { Session } from './session.ts'
 
 export interface HostDefaults {
@@ -34,7 +34,7 @@ export class ArtifactStore extends Context.Service<
       readonly results: ReadonlyArray<CaptureResult>
     }): Effect.Effect<void>
     /** A fresh directory for one flow's stills, video and trace. */
-    makeFlowDir(input: { readonly label: string; readonly name: string }): Effect.Effect<string>
+    makeFlowDir(input: { readonly label: string; readonly flow: Flow }): Effect.Effect<string>
     writeFlowResult(input: { readonly label: string; readonly flowResult: FlowResult }): Effect.Effect<void>
     readSession(): Effect.Effect<Session>
     /** Composes the multi-label sheets, writes report.md, returns its path. */

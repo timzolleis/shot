@@ -21,13 +21,14 @@ import {
   WholePage,
 } from './capture.ts'
 import { ConflictingOutputsError } from './capture-error.ts'
+import { defaultScaleOfSize, defaultSize, type Size, sizeDescription } from './size.ts'
 
 /** What the flags of `shot <target>` say about the plan. */
 export interface ShootFlags {
   readonly modes: ReadonlyArray<Mode>
-  readonly device: Option.Option<string>
-  readonly width: Option.Option<number>
-  readonly height: Option.Option<number>
+  /** In the order given; a size named twice is shot once (E17). */
+  readonly sizes: ReadonlyArray<Size>
+  /** None: each size's default. */
   readonly scale: Option.Option<number>
   readonly reducedMotion: boolean
   readonly steps: ReadonlyArray<Step>
@@ -44,9 +45,7 @@ export interface ShootFlags {
 
 export const defaultShootFlags: ShootFlags = {
   modes: ['light'],
-  device: Option.none(),
-  width: Option.none(),
-  height: Option.none(),
+  sizes: [defaultSize],
   scale: Option.none(),
   reducedMotion: false,
   steps: [],
@@ -82,15 +81,23 @@ export const sectionFromTitle = (text: string): Section => {
     : Section.make({ title: match[1] ?? '', nth: Option.some(Number(match[2])) })
 }
 
-export const variantsFromFlags = (flags: ShootFlags): ReadonlyArray<Variant> =>
+/** The sizes to shoot, each once, in the order given (E17). */
+export const sizesFromFlags = (flags: ShootFlags): ReadonlyArray<Size> =>
+  flags.sizes.filter(
+    (size, index) => flags.sizes.findIndex((other) => sizeDescription(other) === sizeDescription(size)) === index,
+  )
+
+const variantsOfSize = ({ flags, size }: { readonly flags: ShootFlags; readonly size: Size }): ReadonlyArray<Variant> =>
   flags.modes.map((mode) => ({
     mode,
-    device: flags.device,
-    width: flags.width,
-    height: flags.height,
-    scale: Option.getOrElse(flags.scale, () => (Option.isSome(flags.device) ? 2 : 1)),
+    size,
+    scale: Option.getOrElse(flags.scale, () => defaultScaleOfSize(size)),
     reducedMotion: flags.reducedMotion,
   }))
+
+/** Sizes × modes, size first (E17). */
+export const variantsFromFlags = (flags: ShootFlags): ReadonlyArray<Variant> =>
+  sizesFromFlags(flags).flatMap((size) => variantsOfSize({ flags, size }))
 
 const outputFromFlags = (flags: ShootFlags): Result.Result<Output, ConflictingOutputsError> => {
   const picked = [
@@ -174,29 +181,39 @@ export const planCapturesFromFlags = ({
     }),
   )
 
-/** One still per section in the outline, else the page. */
+/** The section titles a size's outline lists. */
+export interface SizeOutline {
+  readonly size: Size
+  readonly sections: ReadonlyArray<string>
+}
+
+const partsFromSections = (sections: ReadonlyArray<string>): ReadonlyArray<Part> =>
+  sections.length === 0
+    ? [WholePage.make({})]
+    : sections.map((title, index): Part => {
+        const repeats = sections.filter((other) => other === title).length
+        const nth = sections.slice(0, index).filter((other) => other === title).length
+
+        return Section.make({ title, nth: repeats > 1 ? Option.some(nth) : Option.none() })
+      })
+
+/** Per size, one still per section in that size's outline, else the page (E19). */
 export const planDefaultCaptures = ({
   source,
   flags,
-  sections,
+  outlines,
 }: {
   readonly source: Source
   readonly flags: ShootFlags
-  readonly sections: ReadonlyArray<string>
+  readonly outlines: ReadonlyArray<SizeOutline>
 }): Plan =>
-  crossCaptures({
-    source,
-    name: Option.none(),
-    variants: variantsFromFlags(flags),
-    scene: [],
-    parts:
-      sections.length === 0
-        ? [WholePage.make({})]
-        : sections.map((title, index): Part => {
-            const repeats = sections.filter((other) => other === title).length
-            const nth = sections.slice(0, index).filter((other) => other === title).length
-
-            return Section.make({ title, nth: repeats > 1 ? Option.some(nth) : Option.none() })
-          }),
-    output: Still.make({ overlays: [], loupe: Option.none() }),
-  })
+  outlines.flatMap(({ size, sections }) =>
+    crossCaptures({
+      source,
+      name: Option.none(),
+      variants: variantsOfSize({ flags, size }),
+      scene: [],
+      parts: partsFromSections(sections),
+      output: Still.make({ overlays: [], loupe: Option.none() }),
+    }),
+  )

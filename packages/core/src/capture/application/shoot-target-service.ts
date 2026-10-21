@@ -9,8 +9,10 @@ import {
   planCapturesFromFlags,
   planDefaultCaptures,
   type ShootFlags,
-  variantsFromFlags,
+  type SizeOutline,
+  sizesFromFlags,
 } from '../domain/capture-plan.ts'
+import type { Size } from '../domain/size.ts'
 import { type CaptureResult, FailedCaptureResult } from '../domain/capture-result.ts'
 import { reasonFromCaptureFailure } from '../domain/capture-failure-reason.ts'
 import { captureKey } from '../domain/capture-key.ts'
@@ -39,7 +41,7 @@ export class ShootTargetService extends Context.Service<
     >
     /** The source's sections, for `--section`. */
     readTargetOutline(
-      command: Pick<ShootTargetCommand, 'raw' | 'as' | 'params' | 'flags'>,
+      command: Pick<ShootTargetCommand, 'raw' | 'as' | 'params'> & { readonly size: Size },
     ): Effect.Effect<
       { readonly source: Source; readonly outline: ReadonlyArray<OutlineEntry> },
       ResolveSourceError | OpenSourceError
@@ -54,8 +56,8 @@ export const ShootTargetServiceLayer = Layer.effect(
     const runner = yield* CaptureRunner
     const store = yield* ArtifactStore
 
-    const outlineOf = (source: Source, flags: ShootFlags) =>
-      runner.readOutline({ source, variant: { ...variantsFromFlags(flags)[0]!, mode: 'light' } })
+    const outlineOf = ({ source, size }: { readonly source: Source; readonly size: Size }) =>
+      runner.readOutline({ source, variant: { mode: 'light', size, scale: 1, reducedMotion: false } })
 
     return ShootTargetService.of({
       shootTarget: Effect.fn('ShootTargetService.shootTarget')(function* ({
@@ -76,37 +78,57 @@ export const ShootTargetServiceLayer = Layer.effect(
           return results
         }
 
-        const outline = yield* outlineOf(source, flags).pipe(Effect.result)
+        // Each size shoots the sections its own outline lists (E19).
+        const outlines = yield* Effect.forEach(
+          sizesFromFlags(flags),
+          (size) =>
+            outlineOf({ source, size }).pipe(
+              Effect.result,
+              Effect.map((outline) => ({ size, outline })),
+            ),
+          { concurrency: 4 },
+        )
 
-        if (Result.isFailure(outline)) {
+        const failed: Array<CaptureResult> = []
+        const shown: Array<SizeOutline> = []
+
+        for (const { size, outline } of outlines) {
+          if (Result.isSuccess(outline)) {
+            shown.push({ size, sections: outline.success.map((entry) => entry.title) })
+            continue
+          }
+
           const error = outline.failure
 
           if (isRunPlanError(error)) return yield* error
 
-          // The source did not render: the page capture fails with the reason, not the command (A3).
-          const results = planDefaultCaptures({ source, flags, sections: [] }).map((capture): CaptureResult =>
-            FailedCaptureResult.make({
-              capture,
-              key: captureKey(capture),
-              findings: [renderFindingFromReason(reasonFromCaptureFailure(error))],
-            }),
-          )
-
-          yield* store.writeManifest({ label, results })
-
-          return results
+          // The source did not render at this size: its page capture fails with the reason, not the command (A3).
+          for (const capture of planDefaultCaptures({ source, flags, outlines: [{ size, sections: [] }] })) {
+            failed.push(
+              FailedCaptureResult.make({
+                capture,
+                key: captureKey(capture),
+                findings: [renderFindingFromReason(reasonFromCaptureFailure(error))],
+              }),
+            )
+          }
         }
 
-        const plan = planDefaultCaptures({ source, flags, sections: outline.success.map((entry) => entry.title) })
-        const results = yield* runner.runPlan({ plan, label, runChecks })
+        const shot = yield* runner.runPlan({
+          plan: planDefaultCaptures({ source, flags, outlines: shown }),
+          label,
+          runChecks,
+        })
+
+        const results = [...shot, ...failed]
         yield* store.writeManifest({ label, results })
 
         return results
       }),
-      readTargetOutline: Effect.fn('ShootTargetService.readTargetOutline')(function* ({ raw, as, params, flags }) {
+      readTargetOutline: Effect.fn('ShootTargetService.readTargetOutline')(function* ({ raw, as, params, size }) {
         const source = yield* providers.resolveSource({ raw, as, params })
 
-        return { source, outline: yield* outlineOf(source, flags) }
+        return { source, outline: yield* outlineOf({ source, size }) }
       }),
     })
   }),

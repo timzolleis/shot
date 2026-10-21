@@ -25,7 +25,7 @@ import {
   type SourceRenderFailedError,
   type SourceTimedOutError,
   type StepFailedError,
-  type UnknownDeviceError,
+  type UnknownSizeError,
   type UserMissingError,
   type VideoTooLargeError,
 } from '@shot/core'
@@ -43,7 +43,7 @@ export type ShotError =
   | SelectionNotFoundError
   | StepFailedError
   | ConflictingOutputsError
-  | UnknownDeviceError
+  | UnknownSizeError
   | LoupeTooLargeError
   | AppHookMissingError
   | AppNotRunningError
@@ -75,7 +75,8 @@ export const cliMessageFromShotError = (error: ShotError): string =>
     AmbiguousSectionError: reasonFromCaptureFailure,
     SelectionNotFoundError: reasonFromCaptureFailure,
     StepFailedError: reasonFromCaptureFailure,
-    UnknownDeviceError: reasonFromCaptureFailure,
+    UnknownSizeError: ({ text, closest }) =>
+      `no size "${text}"; use phone, tablet, laptop, desktop, WxH or a Playwright device; closest: ${closest.join(', ')}`,
     LoupeTooLargeError: reasonFromCaptureFailure,
     ConflictingOutputsError: ({ outputs }) => `${outputs.join(', ')} are separate outputs: pick one per run`,
     AppHookMissingError: ({ hook }) => `no ${hook} in shot.config.ts; app paths need app.url and app.logIn`,

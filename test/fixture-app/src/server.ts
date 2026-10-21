@@ -2,8 +2,8 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AddressInfo } from 'node:net'
 
 /**
- * A tiny app for shot's adapter tests: a login form with a session cookie, sections, a page that 500s, one that
- * redirects, one that PATCHes on submit, and a slow animation. `/__logins` counts logins; `/__expire` ends every
+ * A tiny app for shot's adapter tests: a login form with a session cookie, sections (Sidebar hidden under 768px), a
+ * page that 500s, one that redirects, one that PATCHes on submit, and a slow animation. `/__logins` counts logins; `/__expire` ends every
  * session, as an app restart would.
  */
 
@@ -12,7 +12,7 @@ const accounts = new Set(['admin@example.org', 'parent@example.org'])
 const layout = (
   title: string,
   body: string,
-) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${title}</title>
+) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title>
 <style>
   :root { color-scheme: light dark; font: 16px/1.5 system-ui, sans-serif }
   body { margin: 0; padding: 24px; background: Canvas; color: CanvasText }
@@ -20,6 +20,7 @@ const layout = (
   button { font: inherit; padding: 6px 12px }
   .grow { animation: grow 600ms ease-out both; transform-origin: left }
   @keyframes grow { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+  @media (max-width: 767px) { .wide-only { display: none } }
 </style></head><body>${body}</body></html>`
 
 const sessions = new Map<string, string>()
@@ -59,6 +60,7 @@ const pages = new Map<string, (user: string) => string>([
         `<h1>Persons</h1><p>Signed in as ${user}</p>
 <section><h2>People</h2><ul><li>Ada Lovelace</li><li>Grace Hopper</li></ul><button id="invite">Invite</button></section>
 <section aria-label="Filters"><label>Name <input id="name"></label></section>
+<section aria-label="Sidebar" class="wide-only"><p>Shown from 768px wide</p></section>
 <div id="dialog" hidden><section><h2>Invite</h2><label>Email <input id="email" type="email"></label><button id="send">Send</button><p id="sent" hidden>Sent</p></section></div>
 <script>
   document.getElementById('invite').onclick = () => { document.getElementById('dialog').hidden = false }

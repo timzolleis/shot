@@ -26,6 +26,8 @@ export * from './capture/domain/capture.ts'
 
 export * from './capture/domain/capture-error.ts'
 
+export * from './capture/domain/size.ts'
+
 export * from './capture/domain/capture-key.ts'
 
 export * from './capture/domain/capture-plan.ts'
@@ -59,6 +61,8 @@ export { ArtifactStore } from './artifact/artifact-store.ts'
 export { Browser } from './infrastructure/browser.ts'
 
 export type { ReadyPage } from './infrastructure/page-lifecycle.ts'
+
+export { playwrightDevices } from './infrastructure/page-lifecycle.ts'
 
 export { PageRuntime, outlineText } from './infrastructure/page-runtime.ts'
 

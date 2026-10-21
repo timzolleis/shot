@@ -1,15 +1,22 @@
 import { Schema } from 'effect'
 
-/** A flow file's header: where it starts, as whom (B7). */
+import { sizeSlug } from '../../capture/domain/capture-key.ts'
+import { Size } from '../../capture/domain/size.ts'
+
+/** A flow file's header: where it starts, as whom (B7), at which size (E21). */
 export const Flow = Schema.Struct({
   name: Schema.String,
   file: Schema.String,
   start: Schema.String,
   as: Schema.String,
   params: Schema.Record(Schema.String, Schema.String),
+  size: Size,
 })
 
 export type Flow = typeof Flow.Type
+
+/** A flow's directory and manifest name: `invite-parent--iphone-15`; each size its own (E21). */
+export const flowKey = (flow: Flow): string => `${flow.name}--${sizeSlug(flow.size)}`
 
 /** One still per passed step; `file` is relative to the project root. */
 export const FlowStill = Schema.Struct({ step: Schema.String, file: Schema.String })

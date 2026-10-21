@@ -1,4 +1,4 @@
-import { Context, Effect, Layer, Match, Option, Schema, SchemaIssue } from 'effect'
+import { Context, Effect, Layer, Match, Option, Result, Schema, SchemaIssue } from 'effect'
 import { existsSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import path from 'node:path'
@@ -11,9 +11,11 @@ import {
   SourceProviders,
 } from '../../capture/application/source-providers.ts'
 import { slugFromText } from '../../capture/domain/capture-key.ts'
+import type { UnknownSizeError } from '../../capture/domain/capture-error.ts'
+import { defaultSize, type Size, sizeFromText } from '../../capture/domain/size.ts'
 import { VideoEncoder } from '../../evidence/application/video-encoder.ts'
 import type { VideoTooLargeError } from '../../evidence/domain/evidence-error.ts'
-import { settlePage } from '../../infrastructure/page-lifecycle.ts'
+import { playwrightDevices, settlePage } from '../../infrastructure/page-lifecycle.ts'
 import { effectFromHook, type Hook, messageFromCause } from '../../plugin/hook.ts'
 import { ShotConfig } from '../../plugin/shot-config.ts'
 import { CompletedFlow, type Flow, type FlowResult, type FlowStill, StoppedFlow } from '../domain/flow.ts'
@@ -24,6 +26,8 @@ export interface RecordFlowCommand {
   /** A flow name (`shots/<name>.flow.ts`) or a file. */
   readonly flow: string
   readonly label: string
+  /** `--size`: wins over the header's (E21). */
+  readonly size: Option.Option<Size>
 }
 
 /** B: one flow file to stills, a video and a trace. */
@@ -34,7 +38,12 @@ export class RecordFlowService extends Context.Service<
       command: RecordFlowCommand,
     ): Effect.Effect<
       FlowResult,
-      FlowNotFoundError | FlowInvalidError | ResolveSourceError | OpenSourceError | VideoTooLargeError
+      | FlowNotFoundError
+      | FlowInvalidError
+      | UnknownSizeError
+      | ResolveSourceError
+      | OpenSourceError
+      | VideoTooLargeError
     >
   }
 >()('shot/RecordFlowService') {}
@@ -93,7 +102,7 @@ export const RecordFlowServiceLayer = Layer.effect(
       })
 
     return RecordFlowService.of({
-      recordFlow: Effect.fn('RecordFlowService.recordFlow')(function* ({ flow: raw, label }) {
+      recordFlow: Effect.fn('RecordFlowService.recordFlow')(function* ({ flow: raw, label, size: sizeFlag }) {
         const { file, definition } = yield* loadFlow(raw)
         const { header, body } = definition
         const name = path.basename(file).replace(/\.flow\.ts$|\.ts$/, '')
@@ -105,25 +114,28 @@ export const RecordFlowServiceLayer = Layer.effect(
           params,
         })
 
+        const headerSize = yield* Effect.fromResult(
+          header.size === undefined
+            ? Result.succeed(defaultSize)
+            : sizeFromText({ text: header.size, devices: playwrightDevices }),
+        )
+
+        const size = Option.getOrElse(sizeFlag, () => headerSize)
+
         const flow: Flow = {
           name,
           file: path.relative(store.projectRoot, file),
           start: header.start,
           as: Match.valueTags(source, { RouteSource: ({ user }) => user, UrlSource: () => '' }),
           params,
+          size,
         }
 
-        const dir = yield* store.makeFlowDir({ label, name })
+        const dir = yield* store.makeFlowDir({ label, flow })
         const recordingDir = store.absolutePath(path.join(dir, 'recording'))
 
-        const variant = {
-          mode: header.mode ?? 'light',
-          device: Option.fromNullishOr(header.device),
-          width: Option.fromNullishOr(header.width),
-          height: Option.fromNullishOr(header.height),
-          scale: 1,
-          reducedMotion: false,
-        } as const
+        // Scale 1: the video's size follows the viewport, and the budget counts pixels (B9).
+        const variant = { mode: header.mode ?? 'light', size, scale: 1, reducedMotion: false } as const
 
         const recorded = yield* Effect.scoped(
           Effect.gen(function* () {

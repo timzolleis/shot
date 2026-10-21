@@ -11,9 +11,14 @@ import {
   RecordFlowService,
   ShootTargetService,
   type ShootFlags,
+  type Size,
+  defaultSize,
+  sizeAliases,
+  sizeFromText,
+  playwrightDevices,
 } from '@shot/core'
 import { Effect, Option, Predicate, Schema } from 'effect'
-import { Argument, Command, Flag } from 'effect/cli'
+import { Argument, CliError, Command, Flag } from 'effect/cli'
 import { readFileSync } from 'node:fs'
 
 import { FillValue, LabelValue, stepsFromArgv } from './flags.ts'
@@ -50,6 +55,28 @@ const optionalCount = (name: string, description: string) =>
     Flag.optional,
   )
 
+const sizeText = (description: string) =>
+  Flag.String('size').pipe(
+    Flag.mapEffect((text) =>
+      Effect.fromResult(sizeFromText({ text, devices: playwrightDevices })).pipe(
+        Effect.mapError(
+          ({ closest }) =>
+            new CliError.InvalidValue({
+              option: 'size',
+              value: text,
+              expected: `phone, tablet, laptop, desktop, WxH or a Playwright device; closest: ${closest.join(', ')}`,
+              kind: 'flag',
+            }),
+        ),
+      ),
+    ),
+    Flag.withDescription(description),
+  )
+
+const sizeFlags = sizeText(
+  'phone, tablet, laptop (default), desktop, WxH (390x844) or a Playwright device ("Pixel 8"); repeatable',
+).pipe(Flag.atLeast(0))
+
 const modesFromFlag: Record<'light' | 'dark' | 'both', ReadonlyArray<Mode>> = {
   light: ['light'],
   dark: ['dark'],
@@ -68,14 +95,9 @@ const shootFlags = {
     Flag.withDescription('color scheme'),
     Flag.withDefault('light'),
   ),
-  mobile: Flag.Boolean('mobile').pipe(Flag.withDescription('same as --device "iPhone 15"'), Flag.withDefault(false)),
-  device: Flag.String('device').pipe(
-    Flag.withDescription('a Playwright device: "Pixel 8", "iPad Mini"'),
-    Flag.optional,
-  ),
-  width: optionalNumber('width', "viewport width (default 1280, or the device's)"),
-  height: optionalNumber('height', "viewport height (default 900, or the device's)"),
-  scale: optionalNumber('scale', 'device scale factor (default 1, 2 with a device)'),
+  size: sizeFlags,
+  mobile: Flag.Boolean('mobile').pipe(Flag.withDescription('same as --size phone'), Flag.withDefault(false)),
+  scale: optionalNumber('scale', 'device scale factor for every size (default 2 on devices, 1 on WxH)'),
   reducedMotion: Flag.Boolean('reduced-motion').pipe(
     Flag.withDescription('prefers-reduced-motion: reduce'),
     Flag.withDefault(false),
@@ -127,12 +149,17 @@ const shootFlags = {
 
 type ShootInput = Command.Command.Config.Infer<typeof shootFlags>
 
+/** `--mobile` adds a phone; without any size, the default (E16). */
+const sizesFromInput = (input: ShootInput): ReadonlyArray<Size> => {
+  const sizes = [...input.size, ...(input.mobile ? [sizeAliases.phone] : [])]
+
+  return sizes.length === 0 ? defaultShootFlags.sizes : sizes
+}
+
 const shootFlagsFromInput = (input: ShootInput): ShootFlags => ({
   ...defaultShootFlags,
   modes: modesFromFlag[input.mode],
-  device: Option.orElse(input.device, () => (input.mobile ? Option.some('iPhone 15') : Option.none())),
-  width: input.width,
-  height: input.height,
+  sizes: sizesFromInput(input),
   scale: input.scale,
   reducedMotion: input.reducedMotion,
   steps: stepsFromArgv(process.argv.slice(2)),
@@ -177,6 +204,10 @@ export const shot = Command.make('shot', shootFlags, (input) =>
   Command.withExamples([
     { command: 'shot /app/persons --as admin --mode dark', description: 'one still per section, dark' },
     {
+      command: 'shot /app/persons --as admin --size phone --size desktop',
+      description: 'each section on a phone and a desktop',
+    },
+    {
       command: "shot /settings --as admin --fill '#name=Test' --key Enter --section Profile",
       description: 'a scene, then one section',
     },
@@ -193,11 +224,23 @@ export const shot = Command.make('shot', shootFlags, (input) =>
 
 const outline = Command.make(
   'outline',
-  { target: Argument.String('target'), as: asFlag, param: paramFlag },
-  ({ target, as, param }) =>
+  {
+    target: Argument.String('target'),
+    as: asFlag,
+    param: paramFlag,
+    size: sizeText('the size to read the sections at (default laptop)').pipe(Flag.optional),
+  },
+  ({ target, as, param, size }) =>
     Effect.gen(function* () {
       const service = yield* ShootTargetService
-      const { outline } = yield* service.readTargetOutline({ raw: target, as, params: param, flags: defaultShootFlags })
+
+      const { outline } = yield* service.readTargetOutline({
+        raw: target,
+        as,
+        params: param,
+        size: Option.getOrElse(size, () => defaultSize),
+      })
+
       yield* printLine(outline.length === 0 ? '(no titled sections: shoot the page or --select)' : outlineText(outline))
     }),
 ).pipe(Command.withDescription('Section titles of a target, for --section.'))
@@ -208,11 +251,12 @@ const flow = Command.make(
     flow: Argument.String('flow').pipe(Argument.withDescription('a name (shots/<name>.flow.ts) or a file')),
     label: labelFlag,
     json: jsonFlag,
+    size: sizeText("the size to run at, instead of the flow header's (default laptop)").pipe(Flag.optional),
   },
-  ({ flow: raw, label, json }) =>
+  ({ flow: raw, label, json, size }) =>
     Effect.gen(function* () {
       const service = yield* RecordFlowService
-      const result = yield* service.recordFlow({ flow: raw, label })
+      const result = yield* service.recordFlow({ flow: raw, label, size })
 
       if (json) yield* printLine(JSON.stringify(encodeFlowJson(result), null, 2))
       else {
@@ -230,6 +274,7 @@ const flow = Command.make(
   Command.withDescription('Record a flow: a still per step, a video and a trace.'),
   Command.withExamples([
     { command: 'shot flow invite-parent --label after', description: 'runs shots/invite-parent.flow.ts' },
+    { command: 'shot flow invite-parent --size phone', description: "on a phone, instead of the header's size" },
   ]),
 )
 
@@ -281,12 +326,15 @@ const clean = Command.make(
     }),
 ).pipe(Command.withDescription("Delete this session's files (--all: every session; login defaults stay)."))
 
+// `src/` and `dist/` both sit one level below the package root.
 const skillFile = new URL('../../../skill/SKILL.md', import.meta.url)
 
 const skill = Command.make('skill', {}, () => printLine(readFileSync(skillFile, 'utf8').trimEnd())).pipe(
   Command.withDescription('Print the agent instructions.'),
 )
 
-export const cliVersion = '0.1.0'
+const packageJson: { version: string } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+
+export const cliVersion = packageJson.version
 
 export const shotCommand = shot.pipe(Command.withSubcommands([outline, flow, publish, login, logout, clean, skill]))

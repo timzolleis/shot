@@ -1,7 +1,8 @@
 import { Match, Option, Predicate, Schema } from 'effect'
 import { createHash } from 'node:crypto'
 
-import { Capture, type Output, type Part, Source, Step, Variant } from './capture.ts'
+import { Capture, Mode, type Output, type Part, Source, Step, Variant } from './capture.ts'
+import type { Size } from './size.ts'
 
 /** A capture's file name without extension: `<sourceSlug>--<readable>-<hash6>`. Equal captures get equal keys (A2). */
 export type CaptureKey = string
@@ -81,21 +82,54 @@ const sourceSlugParts = (source: Source): ReadonlyArray<string> =>
     UrlSource: () => [],
   })
 
-/** The readable part of the key: name or part, steps, user and params, device, output, mode. */
+const leadingSlugParts = (capture: Capture): ReadonlyArray<string | undefined> => [
+  Option.getOrElse(Option.map(capture.name, slugFromText), () => partSlug(capture.part)),
+  ...(Option.isSome(capture.name) ? [] : capture.scene.map((step) => step._tag.toLowerCase())),
+  ...sourceSlugParts(capture.source),
+]
+
+const trailingSlugParts = (capture: Capture): ReadonlyArray<string> => [
+  ...outputSlugs(capture.output),
+  capture.variant.mode,
+]
+
+const slugFromParts = (parts: ReadonlyArray<string | undefined>): string =>
+  parts.filter((part) => part !== undefined && part !== '').join('-')
+
+/** `iphone-15`, `1440x900` (E18). */
+export const sizeSlug = (size: Size): string =>
+  Match.valueTags(size, {
+    DeviceSize: ({ device }) => slugFromText(device),
+    ScreenSize: ({ width, height }) => `${width}x${height}`,
+  })
+
+/** The readable part of the key: name or part, steps, user and params, size, output, mode. */
 export const captureSlug = (capture: Capture): string =>
-  [
-    Option.getOrElse(Option.map(capture.name, slugFromText), () => partSlug(capture.part)),
-    ...(Option.isSome(capture.name) ? [] : capture.scene.map((step) => step._tag.toLowerCase())),
-    ...sourceSlugParts(capture.source),
-    ...Option.toArray(Option.map(capture.variant.device, slugFromText)),
-    ...outputSlugs(capture.output),
-    capture.variant.mode,
-  ]
-    .filter((part) => part !== undefined && part !== '')
-    .join('-')
+  slugFromParts([...leadingSlugParts(capture), sizeSlug(capture.variant.size), ...trailingSlugParts(capture)])
 
 export const captureKey = (capture: Capture): CaptureKey =>
   `${sourceSlug(capture.source)}--${captureSlug(capture)}-${hashOfText(canonicalJson(encodeCaptureJson(capture)))}`
+
+/** A sheet's file name: the capture key without the size, so one capture at every size shares it (E20). */
+export type SheetKey = string
+
+/** A capture without its size: the scale follows the size, so it goes too. */
+const SheetCapture = Schema.Struct({
+  ...Capture.fields,
+  variant: Schema.Struct({ mode: Mode, reducedMotion: Schema.Boolean }),
+})
+
+const encodeSheetCaptureJson = Schema.encodeSync(Schema.toCodecJson(SheetCapture))
+
+export const sheetKey = (capture: Capture): SheetKey =>
+  `${sourceSlug(capture.source)}--${slugFromParts([...leadingSlugParts(capture), ...trailingSlugParts(capture)])}-${hashOfText(
+    canonicalJson(
+      encodeSheetCaptureJson({
+        ...capture,
+        variant: { mode: capture.variant.mode, reducedMotion: capture.variant.reducedMotion },
+      }),
+    ),
+  )}`
 
 /**
  * Captures sharing (source, variant, scene) share one page load. Frames need a load of their own: they start before

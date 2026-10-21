@@ -13,7 +13,6 @@ import {
   type SourceRedirectedError,
   type SourceRenderFailedError,
   type SourceTimedOutError,
-  type UnknownDeviceError,
   type UserMissingError,
 } from '../domain/capture-error.ts'
 import { ArtifactStore } from '../../artifact/artifact-store.ts'
@@ -36,7 +35,6 @@ export type OpenSourceError =
   | SourceRenderFailedError
   | SourceTimedOutError
   | SourceRedirectedError
-  | UnknownDeviceError
   | AppHookMissingError
   | AppHookFailedError
   | AppNotRunningError

@@ -1,5 +1,7 @@
 import { Schema } from 'effect'
 
+import { Size } from './size.ts'
+
 /**
  * What one capture is: a source, a variant, a scene, a part and an output (A1). Every command builds a `Plan` of
  * captures; naming, grouping and outputs follow from these fields.
@@ -28,11 +30,7 @@ export type Mode = typeof Mode.Type
 
 export const Variant = Schema.Struct({
   mode: Mode,
-  /** A Playwright device name; none = desktop. */
-  device: Schema.Option(Schema.String),
-  /** Viewport overrides; none = the device's, or 1280×900. */
-  width: Schema.Option(Schema.Number),
-  height: Schema.Option(Schema.Number),
+  size: Size,
   scale: Schema.Number,
   reducedMotion: Schema.Boolean,
 })

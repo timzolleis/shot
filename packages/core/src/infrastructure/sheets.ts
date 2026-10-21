@@ -11,6 +11,9 @@ export interface SheetCell {
   readonly label: string
 }
 
+/** A grid cell: a still drawn at its CSS size (`scale` device pixels per CSS pixel), or a note in its place. */
+export type GridCell = { readonly png: Uint8Array; readonly scale: number } | { readonly note: string }
+
 export class Sheets extends Context.Service<
   Sheets,
   {
@@ -19,6 +22,12 @@ export class Sheets extends Context.Service<
       readonly cells: ReadonlyArray<SheetCell>
       readonly title: string
       readonly columns?: number
+    }): Effect.Effect<Uint8Array>
+    /** Stills under column headers, a label per row, each at its CSS size; scaled down to fit 2000px wide (E20). */
+    composeGrid(input: {
+      readonly title: string
+      readonly columns: ReadonlyArray<string>
+      readonly rows: ReadonlyArray<{ readonly label: string; readonly cells: ReadonlyArray<GridCell> }>
     }): Effect.Effect<Uint8Array>
     /** The PNG at `factor`×, nearest-neighbour; from 4× a line per source pixel. */
     loupe(input: { readonly png: Uint8Array; readonly factor: number }): Effect.Effect<Uint8Array, LoupeTooLargeError>
@@ -94,6 +103,69 @@ export const SheetsLayer = Layer.effect(
               {
                 cells: cells.map((cell) => ({ src: dataUrl(cell.png), label: cell.label })),
                 columns,
+                maxWidth: maxSheetWidth,
+              },
+            )
+
+            return new Uint8Array(await page.locator('#sheet').screenshot())
+          }),
+        ),
+      composeGrid: ({ title, columns, rows }) =>
+        withPage((page) =>
+          Effect.promise(async () => {
+            await page.setContent(`<!doctype html><html><body style="margin:0;background:#fff;font:12px/16px ui-monospace,Menlo,monospace;color:#111">
+<div id="sheet" style="display:inline-flex;flex-direction:column;gap:8px;padding:12px">
+<div style="font-weight:600">${escapeHtml(title)}</div>
+<div id="grid" style="display:grid;gap:12px;align-items:start"></div></div></body></html>`)
+            await page.evaluate(
+              async ({ columns, rows, maxWidth }) => {
+                const grid = document.querySelector<HTMLElement>('#grid')!
+                grid.style.gridTemplateColumns = `max-content repeat(${columns.length}, max-content)`
+
+                const text = (content: string, css = '') => {
+                  const element = document.createElement('div')
+                  element.style.cssText = css
+                  element.textContent = content
+
+                  return element
+                }
+
+                grid.append(text(''), ...columns.map((column) => text(column, 'font-weight:600')))
+
+                for (const row of rows) {
+                  grid.append(text(row.label, 'font-weight:600'))
+
+                  for (const cell of row.cells) {
+                    if (cell.src === '') {
+                      grid.append(text(cell.note, 'color:#888'))
+                      continue
+                    }
+
+                    const image = new Image()
+                    await new Promise((resolve) => {
+                      image.onload = resolve
+                      image.src = cell.src
+                    })
+                    image.style.cssText = `width:${image.naturalWidth / cell.scale}px;height:${image.naturalHeight / cell.scale}px;outline:1px solid #ddd`
+                    grid.append(image)
+                  }
+                }
+
+                const sheet = document.querySelector<HTMLElement>('#sheet')!
+                const width = sheet.getBoundingClientRect().width
+
+                if (width > maxWidth) sheet.style.zoom = String(maxWidth / width)
+              },
+              {
+                columns,
+                rows: rows.map((row) => ({
+                  label: row.label,
+                  cells: row.cells.map((cell) =>
+                    'png' in cell
+                      ? { src: dataUrl(cell.png), scale: cell.scale, note: '' }
+                      : { src: '', scale: 1, note: cell.note },
+                  ),
+                })),
                 maxWidth: maxSheetWidth,
               },
             )

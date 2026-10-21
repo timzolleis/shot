@@ -25,7 +25,6 @@ export const reasonFromCaptureFailure = (error: CaptureFailure): string =>
       `"${title}" matches ${matches.length} sections: ${matches.join(', ')}; add ' >> nth=<i>'`,
     SelectionNotFoundError: ({ selector, reason }) => `--select ${selector}: ${reason}`,
     StepFailedError: ({ step, reason }) => `step ${step}: ${reason}`,
-    UnknownDeviceError: ({ device, closest }) => `no device "${device}"; closest: ${closest.join(', ')}`,
     LoupeTooLargeError: ({ factor, width, height }) =>
       `--loupe ${factor} gives ${width}×${height}px, over 2400px; pick a smaller part or factor`,
   })

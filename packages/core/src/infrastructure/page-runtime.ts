@@ -144,7 +144,13 @@ export const PageRuntimeLayer = Layer.effect(
             })
             const pick = (locator: Locator) => (all ? locator : locator.filter({ visible: true }).first())
             const scoped = scopes.map((scope) => pick(scope.locator(part.selector)))
-            const counts = yield* Effect.promise(() => Promise.all(scoped.map((root) => root.count())))
+            const countMatches = <A>(count: () => Promise<A>) =>
+              Effect.tryPromise({
+                try: count,
+                catch: (error) =>
+                  new SelectionNotFoundError({ selector: part.selector, reason: (String(error).split('\n')[0] ?? '').replace(/^[\w.]+: /, '') }),
+              })
+            const counts = yield* countMatches(() => Promise.all(scoped.map((root) => root.count())))
             if (scoped.length > 0 && counts.some((count) => count === 0)) {
               return yield* new SelectionNotFoundError({
                 selector: part.selector,
@@ -155,7 +161,7 @@ export const PageRuntimeLayer = Layer.effect(
             const first = roots[0]!.first()
             // Content that renders after the scene (a toast, a popup) gets a moment to appear.
             yield* Effect.promise(() => first.waitFor({ state: 'attached', timeout: 2000 }).catch(() => undefined))
-            if ((yield* Effect.promise(() => roots[0]!.count())) === 0) {
+            if ((yield* countMatches(() => roots[0]!.count())) === 0) {
               return yield* new SelectionNotFoundError({ selector: part.selector, reason: 'no element matches (waited 2s)' })
             }
             yield* Effect.promise(() => first.scrollIntoViewIfNeeded().catch(() => undefined))

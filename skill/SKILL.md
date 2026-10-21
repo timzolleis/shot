@@ -25,11 +25,13 @@ shot /settings --as admin                     one still per section, light (an a
 shot https://example.com                      a URL: no login, writes go through
 shot /app/persons --as admin --mode both      light and dark
 --section "Profile"  --select '#save'         part: a section by title, or the first visible match (+16px)
+--select '[data-slot=card]:has-text("Billing")' --name billing
+                                              any Playwright selector (role=, :has-text()); --name keeps the file name stable
 --viewport  --mobile  --device "Pixel 8"  --width 390
 --click a  --fill '#name=Ada'  --key Enter  --hover b  --focus c  --press d  --wait 300
                                               scene, in order; hover, focus and press run last and hold
---overlay boxes,gaps,edges,type,grid  --loupe 4
---measure [--style color,gap] [--all]  --aria  --frames 8 --every 50 [--slow 0.25]
+--overlay boxes --overlay gaps (also edges, type, grid)  --loupe 4
+--measure [--style color --style gap] [--all]  --aria  --frames 8 --every 50 [--slow 0.25]
 --check                                       overflow, target, focus, align, and plugin checks (a11y)
 --label before                                writes to .shots/<session>/before/
 --as admin  --param org=acme                  the user (alias or email) and login params; shot login sets defaults

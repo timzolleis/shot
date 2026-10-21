@@ -4,10 +4,7 @@ import { Cause, Effect } from 'effect'
 import { CliError, Command } from 'effect/cli'
 
 import { cliMessageFromShotError, type ShotError } from './cli-message.ts'
-import { shotCommand } from './commands.ts'
-import { UsageError } from './flags.ts'
-
-const version = '0.1.0'
+import { cliVersion, shotCommand } from './commands.ts'
 
 const writeError = (line: string) => Effect.sync(() => process.stderr.write(`${line}\n`))
 
@@ -20,7 +17,8 @@ const isShotError = (error: unknown): error is ShotError =>
  * one line too, with the stack only under SHOT_DEBUG=1.
  */
 export const main = () =>
-  Command.runWith(shotCommand, { version })(process.argv.slice(2)).pipe(
+  // Bare `shot` prints the help.
+  Command.runWith(shotCommand, { version: cliVersion })(process.argv.length > 2 ? process.argv.slice(2) : ['--help']).pipe(
     Effect.provide(shotLayer(process.cwd())),
     Effect.catchCause((cause) =>
       Effect.gen(function* () {
@@ -29,10 +27,6 @@ export const main = () =>
           return
         }
         const error = Cause.squash(cause)
-        if (error instanceof UsageError) {
-          process.exitCode = 2
-          return yield* writeError(error.message)
-        }
         if (CliError.isCliError(error)) {
           // effect/cli already printed the usage error and the help.
           process.exitCode = 2

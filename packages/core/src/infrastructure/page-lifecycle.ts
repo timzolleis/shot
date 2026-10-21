@@ -268,7 +268,7 @@ export const stepDescription = (step: Step): string =>
     Wait: ({ ms }) => `--wait ${ms}`,
   })
 
-const firstLine = (error: unknown) => (String(error).split('\n')[0] ?? '').replace(/^\w+: /, '')
+const firstLine = (error: unknown) => (String(error).split('\n')[0] ?? '').replace(/^[\w.]+: /, '')
 
 /** Runs one step on the first visible match; fails with one line naming the step. */
 export const runStep = ({ page, step }: { readonly page: Page; readonly step: Step }): Effect.Effect<void, StepFailedError> =>
@@ -281,8 +281,10 @@ export const runStep = ({ page, step }: { readonly page: Page; readonly step: St
     // Pages keep hidden copies of controls (mobile and desktop layouts, closed popups): the first visible match.
     const locator = page.locator(step.selector).filter({ visible: true }).first()
     yield* Effect.promise(() => locator.waitFor({ state: 'visible', timeout: 2000 }).catch(() => undefined))
-    if ((yield* Effect.promise(() => locator.count())) === 0) {
-      const hidden = yield* Effect.promise(() => page.locator(step.selector).count())
+    // A selector Playwright cannot parse fails here, as the step's error.
+    const counted = (count: () => Promise<number>) => Effect.tryPromise({ try: count, catch: (error) => fail(firstLine(error)) })
+    if ((yield* counted(() => locator.count())) === 0) {
+      const hidden = yield* counted(() => page.locator(step.selector).count())
       return yield* fail(`${hidden > 0 ? `${hidden} matching, none visible` : 'no element matches'} (waited 2s)`)
     }
     yield* Effect.tryPromise({

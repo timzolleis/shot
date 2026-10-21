@@ -3,6 +3,8 @@ import {
   CaptureResult,
   defaultShootFlags,
   FlowResult,
+  type Mode,
+  overlays,
   LogInService,
   outlineText,
   PublishEvidenceService,
@@ -14,33 +16,41 @@ import { Effect, Option, Schema } from 'effect'
 import { Argument, Command, Flag } from 'effect/cli'
 import { readFileSync } from 'node:fs'
 
-import { labelFromFlag, listFromFlag, modesFromFlag, overlaysFromFlag, paramsFromFlags, stepsFromArgv } from './flags.ts'
+import { FillValue, LabelValue, stepsFromArgv } from './flags.ts'
 import { anyErrorFinding, displayPath, printCaptureResults, printLine } from './output.ts'
 
 const asFlag = Flag.String('as').pipe(Flag.withDescription('the user: an alias from the config, or an email'), Flag.optional)
-const paramFlag = Flag.String('param').pipe(
+const paramFlag = Flag.KeyValuePair('param').pipe(
   Flag.withDescription('a login param for the logIn hook, name=value (e.g. org=acme); repeatable'),
-  Flag.atLeast(0),
+  Flag.withDefault({}),
 )
 const labelFlag = Flag.String('label').pipe(
+  Flag.withSchema(LabelValue),
   Flag.withDescription('write into .shots/<session>/<label>/ (before, after); same keys across labels'),
-  Flag.optional,
+  Flag.withDefault(''),
 )
 const jsonFlag = Flag.Boolean('json').pipe(Flag.withDescription('print results as JSON'), Flag.withDefault(false))
 const steps = (name: string, description: string) => Flag.String(name).pipe(Flag.withDescription(description), Flag.atLeast(0))
 const optionalNumber = (name: string, description: string) =>
   Flag.Finite(name).pipe(Flag.withDescription(description), Flag.optional)
+const optionalCount = (name: string, description: string) =>
+  Flag.Int(name).pipe(Flag.withSchema(Schema.Int.pipe(Schema.check(Schema.isGreaterThan(0)))), Flag.withDescription(description), Flag.optional)
+
+const modesFromFlag: Record<'light' | 'dark' | 'both', ReadonlyArray<Mode>> = {
+  light: ['light'],
+  dark: ['dark'],
+  both: ['light', 'dark'],
+}
 
 const shootFlags = {
   target: Argument.String('target').pipe(
     Argument.withDescription('an app path (/settings, /app/persons/abc) or a URL'),
-    Argument.optional,
   ),
   as: asFlag,
   param: paramFlag,
   label: labelFlag,
   json: jsonFlag,
-  mode: Flag.String('mode').pipe(Flag.withDescription('light, dark or both (default light)'), Flag.withDefault('light')),
+  mode: Flag.Literals('mode', ['light', 'dark', 'both']).pipe(Flag.withDescription('color scheme'), Flag.withDefault('light')),
   mobile: Flag.Boolean('mobile').pipe(Flag.withDescription('same as --device "iPhone 15"'), Flag.withDefault(false)),
   device: Flag.String('device').pipe(Flag.withDescription('a Playwright device: "Pixel 8", "iPad Mini"'), Flag.optional),
   width: optionalNumber('width', 'viewport width (default 1280, or the device\'s)'),
@@ -48,25 +58,25 @@ const shootFlags = {
   scale: optionalNumber('scale', 'device scale factor (default 1, 2 with a device)'),
   reducedMotion: Flag.Boolean('reduced-motion').pipe(Flag.withDescription('prefers-reduced-motion: reduce'), Flag.withDefault(false)),
   click: steps('click', 'scene step, in command-line order'),
-  fill: steps('fill', 'scene step: <css>=<text>'),
+  fill: Flag.String('fill').pipe(Flag.withSchema(FillValue), Flag.withDescription('scene step: <css>=<text>'), Flag.atLeast(0)),
   key: steps('key', 'scene step: a key (Enter, Escape)'),
   hover: steps('hover', 'scene step, runs last and holds'),
   focus: steps('focus', 'scene step, runs last and holds; checks the focus ring with --check'),
   press: steps('press', 'scene step: mouse down, runs last and holds'),
-  wait: steps('wait', 'scene step: wait <ms>'),
+  wait: Flag.Finite('wait').pipe(Flag.withDescription('scene step: wait <ms>'), Flag.atLeast(0)),
   section: Flag.String('section').pipe(
     Flag.withDescription('a section by title (exact, else unique substring; "Title >> nth=1"); repeatable'),
     Flag.atLeast(0),
   ),
   select: Flag.String('select').pipe(Flag.withDescription('the first visible match, 16px around it; repeatable'), Flag.atLeast(0)),
   viewport: Flag.Boolean('viewport').pipe(Flag.withDescription('only the viewport'), Flag.withDefault(false)),
-  overlay: Flag.String('overlay').pipe(Flag.withDescription('boxes,gaps,edges,type,grid'), Flag.optional),
-  loupe: optionalNumber('loupe', 'the part at n×, nearest-neighbour'),
-  frames: optionalNumber('frames', 'n frames from the scene\'s last step, on one sheet'),
+  overlay: Flag.Literals('overlay', overlays).pipe(Flag.withDescription('draw measurements on the still; repeatable'), Flag.atLeast(0)),
+  loupe: optionalCount('loupe', 'the part at n×, nearest-neighbour'),
+  frames: optionalCount('frames', 'n frames from the scene\'s last step, on one sheet'),
   every: optionalNumber('every', 'ms of animation time between frames (default 50)'),
   slow: optionalNumber('slow', 'animation speed for frames (0.1 = 10× slower)'),
   measure: Flag.Boolean('measure').pipe(Flag.withDescription('JSON per match: box, spacing, radius, font'), Flag.withDefault(false)),
-  style: Flag.String('style').pipe(Flag.withDescription('computed styles for --measure, comma-separated'), Flag.optional),
+  style: Flag.String('style').pipe(Flag.withDescription('a computed style for --measure; repeatable'), Flag.atLeast(0)),
   all: Flag.Boolean('all').pipe(Flag.withDescription('--measure every match, not the first'), Flag.withDefault(false)),
   aria: Flag.Boolean('aria').pipe(Flag.withDescription('the part\'s accessibility tree as text'), Flag.withDefault(false)),
   check: Flag.Boolean('check').pipe(Flag.withDescription('run the checks (overflow, target, focus, align, plugins\')'), Flag.withDefault(false)),
@@ -77,7 +87,7 @@ type ShootInput = Command.Command.Config.Infer<typeof shootFlags>
 
 const shootFlagsFromInput = (input: ShootInput): ShootFlags => ({
   ...defaultShootFlags,
-  modes: modesFromFlag(input.mode),
+  modes: modesFromFlag[input.mode],
   device: Option.orElse(input.device, () => (input.mobile ? Option.some('iPhone 15') : Option.none())),
   width: input.width,
   height: input.height,
@@ -87,7 +97,7 @@ const shootFlagsFromInput = (input: ShootInput): ShootFlags => ({
   sections: input.section,
   selects: input.select,
   viewport: input.viewport,
-  overlays: Option.match(input.overlay, { onNone: () => [], onSome: overlaysFromFlag }),
+  overlays: input.overlay,
   loupe: input.loupe,
   frames: Option.map(input.frames, (count) => ({
     count,
@@ -95,26 +105,23 @@ const shootFlagsFromInput = (input: ShootInput): ShootFlags => ({
     slow: Option.getOrElse(input.slow, () => 1),
   })),
   measure: input.measure
-    ? Option.some({ styles: Option.match(input.style, { onNone: () => [], onSome: listFromFlag }), all: input.all })
+    ? Option.some({ styles: input.style, all: input.all })
     : Option.none(),
   aria: input.aria,
   name: input.name,
 })
-
-const labelOf = (label: Option.Option<string>) => Option.match(label, { onNone: () => '', onSome: labelFromFlag })
 
 const encodeResultsJson = Schema.encodeSync(Schema.toCodecJson(Schema.Array(CaptureResult)))
 const encodeFlowJson = Schema.encodeSync(Schema.toCodecJson(FlowResult))
 
 export const shot = Command.make('shot', shootFlags, (input) =>
   Effect.gen(function* () {
-    if (Option.isNone(input.target)) return yield* printLine(readUsage())
     const service = yield* ShootTargetService
     const results = yield* service.shootTarget({
-      raw: input.target.value,
+      raw: input.target,
       as: input.as,
-      params: paramsFromFlags(input.param),
-      label: labelOf(input.label),
+      params: input.param,
+      label: input.label,
       flags: shootFlagsFromInput(input),
       runChecks: input.check,
     })
@@ -122,7 +129,15 @@ export const shot = Command.make('shot', shootFlags, (input) =>
     else yield* printCaptureResults(results)
     if (anyErrorFinding(results)) process.exitCode = 1
   }),
-).pipe(Command.withDescription('Shoot an app path or a URL: stills, overlays, measurements, checks.'))
+).pipe(
+  Command.withDescription('Shoot an app path or a URL: stills, overlays, measurements, checks.'),
+  Command.withExamples([
+    { command: 'shot /app/persons --as admin --mode dark', description: 'one still per section, dark' },
+    { command: "shot /settings --as admin --fill '#name=Test' --key Enter --section Profile", description: 'a scene, then one section' },
+    { command: 'git stash -u && shot /app/persons --as admin --label before', description: 'the state before your change' },
+    { command: 'shot /settings --as admin --select "#save" --overlay boxes --overlay gaps --check', description: 'measure and check one control' },
+  ]),
+)
 
 const outline = Command.make(
   'outline',
@@ -130,7 +145,7 @@ const outline = Command.make(
   ({ target, as, param }) =>
     Effect.gen(function* () {
       const service = yield* ShootTargetService
-      const { outline } = yield* service.readTargetOutline({ raw: target, as, params: paramsFromFlags(param), flags: defaultShootFlags })
+      const { outline } = yield* service.readTargetOutline({ raw: target, as, params: param, flags: defaultShootFlags })
       yield* printLine(outline.length === 0 ? '(no titled sections: shoot the page or --select)' : outlineText(outline))
     }),
 ).pipe(Command.withDescription('Section titles of a target, for --section.'))
@@ -141,7 +156,7 @@ const flow = Command.make(
   ({ flow: raw, label, json }) =>
     Effect.gen(function* () {
       const service = yield* RecordFlowService
-      const result = yield* service.recordFlow({ flow: raw, label: labelOf(label) })
+      const result = yield* service.recordFlow({ flow: raw, label })
       if (json) yield* printLine(JSON.stringify(encodeFlowJson(result), null, 2))
       else {
         for (const still of result.stills) yield* printLine(yield* displayPath(still.file))
@@ -153,7 +168,10 @@ const flow = Command.make(
         process.exitCode = 1
       }
     }),
-).pipe(Command.withDescription('Record a flow: a still per step, a video and a trace.'))
+).pipe(
+  Command.withDescription('Record a flow: a still per step, a video and a trace.'),
+  Command.withExamples([{ command: 'shot flow invite-parent --label after', description: 'runs shots/invite-parent.flow.ts' }]),
+)
 
 const publish = Command.make(
   'publish',
@@ -176,7 +194,7 @@ const login = Command.make(
   ({ as, param }) =>
     Effect.gen(function* () {
       const service = yield* LogInService
-      const { url, host, user } = yield* service.logIn({ as, params: paramsFromFlags(param) })
+      const { url, host, user } = yield* service.logIn({ as, params: param })
       yield* printLine(`logged in as ${user} at ${url}; default user for app paths on ${host}`)
     }),
 ).pipe(Command.withDescription('Log in fresh through the logIn hook and make the user the default.'))
@@ -206,18 +224,6 @@ const skill = Command.make('skill', {}, () => printLine(readFileSync(skillFile, 
   Command.withDescription('Print the agent instructions.'),
 )
 
-const readUsage = () =>
-  [
-    'shot: agents prove UI work. Shoot what changed, before and after; record flows; publish evidence to the PR.',
-    '',
-    '  shot <path|url> [flags]       shoot (shot --help for flags)',
-    '  shot outline <path|url>       section titles, for --section',
-    '  shot flow <name|file>         record a flow: stills, video, trace',
-    '  shot publish [--pr n]         the session\'s evidence into the PR body',
-    '  shot login --as <user>        log in and make the user the default',
-    '  shot logout [--as <user>]     delete cached sessions',
-    '  shot clean [--all]            delete this session\'s files',
-    '  shot skill                    the agent instructions',
-  ].join('\n')
+export const cliVersion = '0.1.0'
 
 export const shotCommand = shot.pipe(Command.withSubcommands([outline, flow, publish, login, logout, clean, skill]))

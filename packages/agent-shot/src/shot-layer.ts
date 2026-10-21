@@ -30,7 +30,9 @@ export const shotLayer = (cwd: string) => {
   const shotPlatform = Layer.mergeAll(platform, browser, store)
 
   const plugins = Layer.unwrap(
-    Effect.map(ShotConfig, (loaded) => Layer.mergeAll(Layer.empty, ...loaded.plugins.map((plugin) => plugin.layer))),
+    Effect.map(ShotConfig, (loaded) =>
+      Layer.mergeAll(Layer.empty, ...loaded.plugins.map((plugin) => plugin.layer ?? Layer.empty)),
+    ),
   ).pipe(Layer.provide(shotPlatform))
 
   const runtime = PageRuntimeLayer

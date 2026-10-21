@@ -120,6 +120,35 @@ shot flow invite-parent --size phone --label after
 - **Exit codes:** 0 when everything is ok. 1 on a render failure (500, redirect, timeout, failed step) or an error finding. 2 on a usage error.
 - **Files:** `.shots/<session>/[<label>/]<source>--<slug>-<hash>.png`. A rerun overwrites the file. `shot clean` removes the session.
 
+## Plugins
+
+A plugin is an object in `shot.config.ts`: checks run on each still's part with `--check`, publishers put evidence somewhere with `shot publish`. Plain values, Promises and Effects all work; a throw becomes an error finding (checks) or a `PublishFailedError` (publishers).
+
+```ts
+import { defineConfig, definePlugin, github, isStill } from 'agent-shot'
+
+const todos = definePlugin({
+  name: 'todos',
+  checks: [
+    {
+      check: 'todo',
+      appliesTo: isStill,
+      runCheck: async ({ roots }) => {
+        const texts = await Promise.all(roots.map((root) => root.innerText()))
+
+        return texts.some((text) => text.includes('TODO'))
+          ? [{ severity: 'warn', message: 'TODO left in the page' }]
+          : []
+      },
+    },
+  ],
+})
+
+export default defineConfig({ plugins: [github(), todos] })
+```
+
+A finding is `{ severity: 'error' | 'warn', message, selector?, rect? }`; `rect` is in page pixels. A publisher is `{ publisher: 'slack', publishEvidence: async ({ report, pr }) => ({ url, attachments }) }`. Plugins written in Effect add a `layer` that provides what their checks and publishers need; see `src/github`.
+
 ## Development
 
 ```text

@@ -1,4 +1,4 @@
-import { Effect, Option } from 'effect'
+import { Effect } from 'effect'
 
 import { Step } from '../capture/domain/capture.ts'
 import { settlePage } from '../infrastructure/page-lifecycle.ts'
@@ -37,10 +37,9 @@ export const focusCheck: CaptureCheck = {
         return [
           {
             check: 'focus',
-            severity: 'error' as const,
+            severity: 'error',
             message: 'nothing is focused after the focus step',
             selector: step.selector,
-            rect: Option.none(),
           },
         ]
       }
@@ -64,10 +63,10 @@ export const focusCheck: CaptureCheck = {
         ? [
             {
               check: 'focus',
-              severity: 'error' as const,
+              severity: 'error',
               message: 'focus shows no visible outline or ring',
               selector: step.selector,
-              rect: Option.some(area),
+              rect: area,
             },
           ]
         : []

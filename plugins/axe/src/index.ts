@@ -1,6 +1,5 @@
-import type { CaptureCheck, Finding, ShotPlugin } from 'agent-shot'
+import { type CaptureCheck, type CheckFinding, definePlugin, isStill } from 'agent-shot'
 import type AxeCore from 'axe-core'
-import { Effect, Layer, Option, Predicate } from 'effect'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 
@@ -18,53 +17,51 @@ declare global {
 
 export const a11yCheck: CaptureCheck = {
   check: 'a11y',
-  appliesTo: (capture) => Predicate.isTagged(capture.output, 'Still'),
-  runCheck: ({ page: { page }, roots }) =>
-    Effect.promise(async () => {
-      if (!(await page.evaluate(() => 'axe' in window))) await page.addScriptTag({ content: axeSource() })
+  appliesTo: isStill,
+  runCheck: async ({ page: { page }, roots }) => {
+    if (!(await page.evaluate(() => 'axe' in window))) await page.addScriptTag({ content: axeSource() })
 
-      const violations = (
-        await Promise.all(
-          roots.map((root) =>
-            root.evaluate(async (element, disabled) => {
-              const result = await window.axe.run(element, {
-                resultTypes: ['violations'],
-                rules: Object.fromEntries(disabled.map((rule) => [rule, { enabled: false }])),
-              })
+    const violations = (
+      await Promise.all(
+        roots.map((root) =>
+          root.evaluate(async (element, disabled) => {
+            const result = await window.axe.run(element, {
+              resultTypes: ['violations'],
+              rules: Object.fromEntries(disabled.map((rule) => [rule, { enabled: false }])),
+            })
 
-              return result.violations.map((violation) => ({
-                id: violation.id,
-                impact: violation.impact ?? null,
-                help: violation.help,
-                nodes: violation.nodes.map((node) => {
-                  const target = node.target.map(String)
-                  const rect = document.querySelector(target.join(' '))?.getBoundingClientRect()
+            return result.violations.map((violation) => ({
+              id: violation.id,
+              impact: violation.impact ?? null,
+              help: violation.help,
+              nodes: violation.nodes.map((node) => {
+                const target = node.target.map(String)
+                const rect = document.querySelector(target.join(' '))?.getBoundingClientRect()
 
-                  return {
-                    target,
-                    rect:
-                      rect === undefined
-                        ? undefined
-                        : { x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: rect.height },
-                  }
-                }),
-              }))
-            }, pageRules),
-          ),
-        )
-      ).flat()
-
-      return violations.flatMap((violation) =>
-        violation.nodes.map((node): Finding => ({
-          check: 'a11y',
-          severity: violation.impact === 'serious' || violation.impact === 'critical' ? 'error' : 'warn',
-          message: `${violation.help} (${violation.id})`,
-          selector: node.target.join(' '),
-          rect: Option.fromNullishOr(node.rect),
-        })),
+                return {
+                  target,
+                  rect:
+                    rect === undefined
+                      ? undefined
+                      : { x: rect.left + scrollX, y: rect.top + scrollY, width: rect.width, height: rect.height },
+                }
+              }),
+            }))
+          }, pageRules),
+        ),
       )
-    }),
+    ).flat()
+
+    return violations.flatMap((violation) =>
+      violation.nodes.map((node): CheckFinding => ({
+        severity: violation.impact === 'serious' || violation.impact === 'critical' ? 'error' : 'warn',
+        message: `${violation.help} (${violation.id})`,
+        selector: node.target.join(' '),
+        rect: node.rect,
+      })),
+    )
+  },
 }
 
 /** The a11y check (axe-core), with `--check`. */
-export const axe = (): ShotPlugin => ({ name: 'axe', checks: [a11yCheck], layer: Layer.empty })
+export const axe = () => definePlugin({ name: 'axe', checks: [a11yCheck] })

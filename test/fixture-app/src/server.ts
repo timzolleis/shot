@@ -83,6 +83,7 @@ const pages = new Map<string, (user: string) => string>([
 </script>`,
       ),
   ],
+  ['/drafts', () => layout('Drafts', '<h1>Drafts</h1><section><h2>Ideas</h2><p>TODO: write the intro</p></section>')],
   [
     '/animated',
     () =>

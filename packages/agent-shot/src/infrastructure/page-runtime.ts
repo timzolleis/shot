@@ -8,7 +8,6 @@ import type { Overlay, Part, Rect, Selected } from '../capture/domain/capture.ts
 import { AmbiguousSectionError, SectionNotFoundError, SelectionNotFoundError } from '../capture/domain/capture-error.ts'
 import { partDescription } from '../capture/domain/capture-key.ts'
 import { sectionFromTitle } from '../capture/domain/capture-plan.ts'
-import type { Finding } from '../capture/domain/finding.ts'
 
 export interface OutlineEntry {
   readonly title: string
@@ -49,7 +48,7 @@ export class PageRuntime extends Context.Service<
     runRuntimeChecks(input: {
       readonly roots: ReadonlyArray<Locator>
       readonly checks: ReadonlyArray<string>
-    }): Effect.Effect<ReadonlyArray<Finding>>
+    }): Effect.Effect<ReadonlyArray<RuntimeFinding>>
   }
 >()('shot/PageRuntime') {}
 
@@ -91,14 +90,6 @@ const paddedClip = async (page: Page, rects: ReadonlyArray<Rect>): Promise<Rect>
 
   return { x, y, width: right - x, height: bottom - y }
 }
-
-const findingFromRuntime = (finding: RuntimeFinding): Finding => ({
-  check: finding.check,
-  severity: finding.severity,
-  message: finding.message,
-  selector: finding.selector,
-  rect: Option.fromNullishOr(finding.rect),
-})
 
 export const PageRuntimeLayer = Layer.effect(
   PageRuntime,
@@ -256,9 +247,7 @@ export const PageRuntimeLayer = Layer.effect(
             await Promise.all(
               roots.map((root) => root.evaluate((element, names) => window.__shot.check(names, element), checks)),
             )
-          )
-            .flat()
-            .map(findingFromRuntime),
+          ).flat(),
         ),
     })
   }),

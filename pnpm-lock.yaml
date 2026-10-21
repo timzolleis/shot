@@ -224,9 +224,6 @@ importers:
       axe-core:
         specifier: ^4.14.0
         version: 4.14.0
-      effect:
-        specifier: 4.0.5
-        version: 4.0.5
     devDependencies:
       agent-shot:
         specifier: workspace:*

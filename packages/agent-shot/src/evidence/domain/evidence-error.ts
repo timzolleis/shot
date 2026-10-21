@@ -31,3 +31,9 @@ export class PublisherNotFoundError extends Data.TaggedError('PublisherNotFoundE
   readonly publisher: string
   readonly available: ReadonlyArray<string>
 }> {}
+
+/** A plugin publisher threw or rejected. */
+export class PublishFailedError extends Data.TaggedError('PublishFailedError')<{
+  readonly publisher: string
+  readonly message: string
+}> {}

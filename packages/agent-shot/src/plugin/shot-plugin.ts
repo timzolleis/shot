@@ -19,6 +19,9 @@ export interface ShotPlugin<R = never> {
   readonly name: string
   readonly checks?: ReadonlyArray<CaptureCheck<R>>
   readonly publishers?: ReadonlyArray<EvidencePublisher<R>>
-  /** Provides what the checks and publishers need beyond the platform. */
-  readonly layer: Layer.Layer<Exclude<R, ShotPlatform>, never, ShotPlatform>
+  /** Provides what Effect checks and publishers need beyond the platform; plain functions need none. */
+  readonly layer?: Layer.Layer<Exclude<R, ShotPlatform>, never, ShotPlatform>
 }
+
+/** Types a plugin in its own file; inline in `defineConfig`, the config types it. */
+export const definePlugin = <R = never>(plugin: ShotPlugin<R>): ShotPlugin<R> => plugin

@@ -12,7 +12,11 @@ export { effectFromHook, messageFromCause } from './plugin/hook.ts'
 
 export type { ShotPlatform, ShotPlugin } from './plugin/shot-plugin.ts'
 
-export type { CaptureCheck } from './plugin/capture-check.ts'
+export { definePlugin } from './plugin/shot-plugin.ts'
+
+export type { CaptureCheck, CheckFinding } from './plugin/capture-check.ts'
+
+export { isStill } from './checks/runtime-check.ts'
 
 export type { EvidencePublisher, PublishEvidenceError, PublishedEvidence } from './plugin/evidence-publisher.ts'
 

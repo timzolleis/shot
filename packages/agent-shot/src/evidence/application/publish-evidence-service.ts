@@ -2,14 +2,22 @@ import { Context, Effect, Layer, Option } from 'effect'
 
 import { ArtifactStore } from '../../artifact/artifact-store.ts'
 import type { EvidencePublisher, PublishEvidenceError, PublishedEvidence } from '../../plugin/evidence-publisher.ts'
+import { effectFromPluginHook } from '../../plugin/hook.ts'
 import { ShotConfig } from '../../plugin/shot-config.ts'
-import { NoEvidenceError, PublisherNotFoundError } from '../domain/evidence-error.ts'
+import { NoEvidenceError, PublisherNotFoundError, PublishFailedError } from '../domain/evidence-error.ts'
 import { evidenceReportFromSession } from '../domain/evidence-report.ts'
 
 /** The plugins' publishers, run in the context their layers built. */
 export class EvidencePublishers extends Context.Service<
   EvidencePublishers,
-  { readonly publishers: ReadonlyArray<EvidencePublisher> }
+  {
+    readonly publishers: ReadonlyArray<{
+      readonly publisher: string
+      publishEvidence(
+        input: Parameters<EvidencePublisher['publishEvidence']>[0],
+      ): Effect.Effect<PublishedEvidence, PublishEvidenceError>
+    }>
+  }
 >()('shot/EvidencePublishers') {}
 
 export const EvidencePublishersLayer = Layer.effect(
@@ -25,10 +33,10 @@ export const EvidencePublishersLayer = Layer.effect(
           publisher: publisher.publisher,
           publishEvidence: (input) =>
             // SAFETY: `context` was captured inside the merged plugin layers (shot-layer), which provide every publisher's R.
-            publisher.publishEvidence(input).pipe(Effect.provideContext(context)) as Effect.Effect<
-              PublishedEvidence,
-              PublishEvidenceError
-            >,
+            effectFromPluginHook(
+              () => publisher.publishEvidence(input),
+              (message) => new PublishFailedError({ publisher: publisher.publisher, message }),
+            ).pipe(Effect.provideContext(context)) as Effect.Effect<PublishedEvidence, PublishEvidenceError>,
         })),
     })
   }),

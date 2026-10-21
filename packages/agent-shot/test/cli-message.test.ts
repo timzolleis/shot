@@ -34,6 +34,7 @@ const errors: ReadonlyArray<ShotError> = [
   new core.NoPullRequestError({ branch: 'feat/x' }),
   new core.NoEvidenceError({ session: 'local' }),
   new core.PublisherNotFoundError({ publisher: '', available: [] }),
+  new core.PublishFailedError({ publisher: 'slack', message: 'channel not found' }),
   new core.ShotConfigInvalidError({ file: 'shot.config.ts', reason: 'Unexpected token' }),
 ]
 

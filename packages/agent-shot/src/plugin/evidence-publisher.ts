@@ -1,5 +1,3 @@
-import type { Effect } from 'effect'
-
 import type { EvidenceReport } from '../evidence/domain/evidence-report.ts'
 import type {
   GhCommandFailedError,
@@ -7,7 +5,9 @@ import type {
   GhTooOldError,
   NoPullRequestError,
   NoPushAccessError,
+  PublishFailedError,
 } from '../evidence/domain/evidence-error.ts'
+import type { Hook } from './hook.ts'
 
 export interface PublishedEvidence {
   /** Where the evidence went: the PR's URL. */
@@ -21,11 +21,16 @@ export type PublishEvidenceError =
   | GhCommandFailedError
   | NoPushAccessError
   | NoPullRequestError
+  | PublishFailedError
 
+/**
+ * Puts the session's evidence somewhere. `publishEvidence` returns the result, a Promise of it, or an Effect; a throw
+ * or a rejection becomes a `PublishFailedError`.
+ */
 export interface EvidencePublisher<R = never> {
   readonly publisher: string
   readonly publishEvidence: (input: {
     readonly report: EvidenceReport
     readonly pr: number | undefined
-  }) => Effect.Effect<PublishedEvidence, PublishEvidenceError, R>
+  }) => Hook<PublishedEvidence, PublishEvidenceError, R>
 }

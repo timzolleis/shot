@@ -14,6 +14,7 @@ import {
   type NoPullRequestError,
   type NoPushAccessError,
   type PublisherNotFoundError,
+  type PublishFailedError,
   reasonFromCaptureFailure,
   type SectionNotFoundError,
   type SelectionNotFoundError,
@@ -59,6 +60,7 @@ export type ShotError =
   | NoPullRequestError
   | NoEvidenceError
   | PublisherNotFoundError
+  | PublishFailedError
   | ShotConfigInvalidError
 
 const megabytes = (bytes: number) => (bytes / 1024 / 1024).toFixed(1)
@@ -100,5 +102,6 @@ export const cliMessageFromShotError = (error: ShotError): string =>
       available.length === 0
         ? 'no publisher configured; add github() from agent-shot to plugins in shot.config.ts'
         : `no publisher "${publisher}"; configured: ${available.join(', ')}`,
+    PublishFailedError: ({ publisher, message }) => `publisher ${publisher} failed: ${message}`,
     ShotConfigInvalidError: ({ file, reason }) => `${file} failed to load: ${reason}`,
   })

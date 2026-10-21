@@ -1,5 +1,23 @@
 import { axe } from '@agent-shot/axe'
-import { defineConfig, github } from 'agent-shot'
+import { defineConfig, definePlugin, github, isStill } from 'agent-shot'
+
+/** A project's own check: plain async code, no Effect, no layer. */
+const todos = definePlugin({
+  name: 'todos',
+  checks: [
+    {
+      check: 'todo',
+      appliesTo: isStill,
+      runCheck: async ({ roots }) => {
+        const texts = await Promise.all(roots.map((root) => root.innerText()))
+
+        return texts.some((text) => text.includes('TODO'))
+          ? [{ severity: 'warn', message: 'TODO left in the page' }]
+          : []
+      },
+    },
+  ],
+})
 
 /** The fixture app's config: what a project writes, without Effect. */
 export default defineConfig({
@@ -17,5 +35,5 @@ export default defineConfig({
       if ((await refused.count()) > 0) throw new Error(await refused.innerText())
     },
   },
-  plugins: [axe(), github()],
+  plugins: [axe(), github(), todos],
 })

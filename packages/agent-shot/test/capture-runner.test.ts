@@ -77,6 +77,26 @@ describe('CaptureRunner against the fixture app', () => {
     expect(persons.every((result) => Predicate.isTagged(result, 'CapturedResult'))).toBe(true)
   })
 
+  it("--check → the project's check and axe run; a TODO → todo finding", async () => {
+    const [result] = await runtime.runPromise(
+      Effect.flatMap(ShootTargetService, (service) =>
+        service.shootTarget({
+          raw: '/drafts',
+          as: Option.some('admin'),
+          params: {},
+          label: '',
+          flags: defaultShootFlags,
+          runChecks: true,
+        }),
+      ),
+    )
+
+    const findings = result!.findings.map((finding) => `${finding.check}: ${finding.message}`)
+
+    expect(findings).toContain('todo: TODO left in the page')
+    expect(findings.filter((finding) => finding.includes('check failed'))).toEqual([])
+  })
+
   it('submit sends PATCH → aborted, console finding "blocked PATCH /api/settings" (4)', async () => {
     const [result] = await shoot('/settings', {
       ...defaultShootFlags,

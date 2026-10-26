@@ -74,7 +74,7 @@ export default defineConfig({
 ## Examples
 
 ```sh
-# every section of a page, as a user
+# every section of a page, as an admin
 shot /app/persons --as admin
 
 # list the section titles, then shoot one in light and dark

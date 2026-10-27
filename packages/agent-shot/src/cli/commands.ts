@@ -275,19 +275,17 @@ const flow = Command.make(
       const result = yield* service.recordFlow({ flow: raw, label, size })
 
       if (json) yield* printLine(JSON.stringify(encodeFlowJson(result), null, 2))
-      else {
-        for (const still of result.stills) yield* printLine(yield* displayPath(still.file))
-        yield* printLine(yield* displayPath(result.video))
-        yield* printLine(yield* displayPath(result.trace))
-      }
+      else for (const still of result.stills) yield* printLine(yield* displayPath(still.file))
 
       if (Predicate.isTagged(result, 'StoppedFlow')) {
-        yield* printLine(`error flow     ${result.flow.name}: step ${result.failedStep}: ${result.reason}`)
+        yield* printLine(`error flow ${result.flow.name}: step ${result.failedStep}: ${result.reason}`)
+        // The trace is what to open when a step fails; on a pass it is noise.
+        yield* printLine(`trace: ${yield* displayPath(result.trace)}`)
         process.exitCode = 1
       }
     }),
 ).pipe(
-  Command.withDescription('Record a flow: a still per step, a video and a trace.'),
+  Command.withDescription('Record a flow: prints a still per step; a video and a trace go next to them.'),
   Command.withExamples([
     { command: 'shot flow invite-parent --label after', description: 'runs shots/invite-parent.flow.ts' },
     { command: 'shot flow invite-parent --size phone', description: "on a phone, instead of the header's size" },
@@ -297,20 +295,45 @@ const flow = Command.make(
 const publish = Command.make(
   'publish',
   {
+    labels: Argument.String('label').pipe(
+      Argument.withDescription('a label to show, a row each, in the order given; at least one'),
+      Argument.atLeast(1),
+    ),
+    sheet: Flag.String('sheet').pipe(
+      Flag.withDescription('only sheets whose title contains this (case-insensitive); repeatable'),
+      Flag.atLeast(0),
+    ),
+    note: Flag.KeyValuePair('note').pipe(
+      Flag.withDescription('a line under a sheet, <part of its title>=<text>; picks the sheet too; repeatable'),
+      Flag.withDefault({}),
+    ),
     pr: Flag.Int('pr').pipe(Flag.withDescription("the PR number (default: the current branch's)"), Flag.optional),
     publisher: Flag.String('publisher').pipe(
       Flag.withDescription('a configured publisher (default: the first)'),
       Flag.optional,
     ),
   },
-  ({ pr, publisher }) =>
+  ({ labels, sheet, note, pr, publisher }) =>
     Effect.gen(function* () {
       const service = yield* PublishEvidenceService
-      const { reportFile, published } = yield* service.publishEvidence({ pr, publisher })
-      yield* printLine(yield* displayPath(reportFile))
-      yield* printLine(`published ${published.attachments} files to ${published.url}`)
+
+      const { sheets, published } = yield* service.publishEvidence({
+        request: { labels, sheets: sheet, notes: note },
+        pr,
+        publisher,
+      })
+
+      yield* printLine(`published ${sheets} ${sheets === 1 ? 'sheet' : 'sheets'} to ${published.url}`)
     }),
-).pipe(Command.withDescription("Publish the session's evidence to the PR body, replacing the last publish."))
+).pipe(
+  Command.withDescription('Put the sheets you pick on the PR body, with your notes, replacing the last publish.'),
+  Command.withExamples([
+    {
+      command: 'shot publish before after --note "settings=Menu opens inside the screen"',
+      description: 'one sheet, before over after, with a note',
+    },
+  ]),
+)
 
 const encodeFeedbackJson = Schema.encodeSync(Schema.toCodecJson(ReviewFeedback))
 
@@ -418,11 +441,14 @@ const clean = Command.make(
 ).pipe(Command.withDescription("Delete this session's files (--all: every session; login defaults stay)."))
 
 // `src/cli/` and `dist/cli/` both sit two levels below the package root.
-const skillFile = new URL('../../skill/SKILL.md', import.meta.url)
+const skillFile = (topic: Option.Option<'review'>) =>
+  new URL(`../../skill/${Option.getOrElse(topic, () => 'SKILL')}.md`, import.meta.url)
 
-const skill = Command.make('skill', {}, () => printLine(readFileSync(skillFile, 'utf8').trimEnd())).pipe(
-  Command.withDescription('Print the agent instructions.'),
-)
+const skill = Command.make(
+  'skill',
+  { topic: Argument.Literals('topic', ['review']).pipe(Argument.optional) },
+  ({ topic }) => printLine(readFileSync(skillFile(topic), 'utf8').trimEnd()),
+).pipe(Command.withDescription('Print the agent instructions; `review` prints how to put variants up for the user.'))
 
 const packageJson: { version: string } = JSON.parse(
   readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),

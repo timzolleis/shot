@@ -33,6 +33,7 @@ import {
   renderFindingFromReason,
 } from '../domain/finding.ts'
 import { type OpenSourceError, SourceProviders } from './source-providers.ts'
+import { writeProgress } from '../../infrastructure/progress.ts'
 
 /** Errors that end the whole run, not one capture: the app or its hooks. */
 export type RunPlanError = AppHookMissingError | AppHookFailedError | AppNotRunningError | SessionLockTimeoutError
@@ -404,8 +405,8 @@ export const CaptureRunnerLayer = Layer.effect(
                   done++
 
                   if (groups.size > 1) {
-                    process.stderr.write(
-                      `[${done}/${groups.size}] ${sourceDescription(group[0]!.source)} ${sizeDescription(group[0]!.variant.size)} ${group[0]!.variant.mode}\n`,
+                    writeProgress(
+                      `[${done}/${groups.size}] ${sourceDescription(group[0]!.source)} ${sizeDescription(group[0]!.variant.size)} ${group[0]!.variant.mode}`,
                     )
                   }
                 }),

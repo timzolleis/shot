@@ -105,7 +105,7 @@ export const cliMessageFromShotError = (error: ShotError): string =>
     NoPushAccessError: ({ repository, permission }) =>
       `no push access to ${repository} (${permission === '' ? 'none' : permission.toLowerCase()}); attaching files needs it`,
     NoPullRequestError: ({ branch }) => `no pull request for ${branch}; create it first`,
-    NoEvidenceError: ({ session }) => `nothing to publish in session ${session}; shoot or record a flow first`,
+    NoEvidenceError: ({ labels }) => `nothing to publish: ${labels.join(', ')} have no stills`,
     PublisherNotFoundError: ({ publisher, available }) =>
       available.length === 0
         ? 'no publisher configured; add github() from agent-shot to plugins in shot.config.ts'

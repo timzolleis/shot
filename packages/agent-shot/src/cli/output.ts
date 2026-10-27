@@ -1,9 +1,9 @@
 import {
   ArtifactStore,
   type CaptureResult,
-  type Finding,
   hasErrorFinding,
   partDescription,
+  sizeDescription,
   sourceDescription,
 } from '../index.ts'
 import { Console, Effect, Option, Predicate } from 'effect'
@@ -17,21 +17,32 @@ export const printLine = (line: string) => Console.log(line)
 export const displayPath = (file: string) =>
   Effect.map(ArtifactStore, (store) => path.relative(process.cwd(), store.absolutePath(file)) || file)
 
-export const findingLine = (result: CaptureResult, finding: Finding): string => {
-  const subject = Option.getOrElse(result.capture.name, () => partDescription(result.capture.part))
-  const selector = finding.selector === '' ? '' : ` (${finding.selector})`
+/**
+ * One line per finding: `warn target People (iPhone 15): touch target 67×40, under 44×44 (#invite)`. The source only
+ * when the run shot several, the size only when it shot several; the same finding in light and dark is one line.
+ */
+export const findingLines = (results: ReadonlyArray<CaptureResult>): ReadonlyArray<string> => {
+  const sources = new Set(results.map((result) => sourceDescription(result.capture.source)))
+  const sizes = new Set(results.map((result) => sizeDescription(result.capture.variant.size)))
 
-  return `${finding.severity === 'error' ? 'error' : 'warn '} ${finding.check.padEnd(8)} ${sourceDescription(result.capture.source)} › ${subject} (${result.capture.variant.mode}): ${finding.message}${selector}`
-}
+  return [
+    ...new Set(
+      results.flatMap(({ capture, findings }) =>
+        findings.map((finding) => {
+          const where = [
+            ...(sources.size > 1 ? [`${sourceDescription(capture.source)} ›`] : []),
+            Option.getOrElse(capture.name, () => partDescription(capture.part)),
+            ...(sizes.size > 1 ? [`(${sizeDescription(capture.variant.size)})`] : []),
+          ].join(' ')
 
-/** The same finding in light and dark is one line. */
-export const distinctFindingLines = (results: ReadonlyArray<CaptureResult>): ReadonlyArray<string> => [
-  ...new Set(
-    results.flatMap((result) =>
-      result.findings.map((finding) => findingLine(result, finding).replace(/ \((light|dark)\):/, ':')),
+          const selector = finding.selector === '' ? '' : ` (${finding.selector})`
+
+          return `${finding.severity} ${finding.check} ${where}: ${finding.message}${selector}`
+        }),
+      ),
     ),
-  ),
-]
+  ]
+}
 
 export const printCaptureResults = (results: ReadonlyArray<CaptureResult>) =>
   Effect.gen(function* () {
@@ -51,7 +62,7 @@ export const printCaptureResults = (results: ReadonlyArray<CaptureResult>) =>
       yield* printLine(readFileSync(store.absolutePath(result.file), 'utf8').trimEnd())
     }
 
-    for (const line of distinctFindingLines(results)) yield* printLine(line)
+    for (const line of findingLines(results)) yield* printLine(line)
   })
 
 export const anyErrorFinding = (results: ReadonlyArray<CaptureResult>) =>

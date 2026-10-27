@@ -1,13 +1,11 @@
-import { Match, Option, Predicate, Schema } from 'effect'
+import { Match, Option, Predicate, Result, Schema } from 'effect'
 
-import type { Session } from '../../artifact/session.ts'
-import { labelDisplayName } from '../../artifact/session.ts'
+import { labelDisplayName, labelFromName, type Session } from '../../artifact/session.ts'
 import { partDescription, type SheetKey, sheetKey, sourceDescription } from '../../capture/domain/capture-key.ts'
-import type { Mode } from '../../capture/domain/capture.ts'
+import type { Capture, Mode } from '../../capture/domain/capture.ts'
 import type { CaptureResult } from '../../capture/domain/capture-result.ts'
 import { type Size, sizeDescription, sizeOrder } from '../../capture/domain/size.ts'
-import type { Finding } from '../../capture/domain/finding.ts'
-import type { FlowStill } from '../../flow/domain/flow.ts'
+import { LabelNotFoundError, NoEvidenceError, SheetNotFoundError } from './evidence-error.ts'
 
 /** One cell of a sheet: a label's still at a size, its failure, or nothing shot there (E20). */
 export const ShotCell = Schema.TaggedStruct('ShotCell', { file: Schema.String, scale: Schema.Number })
@@ -30,47 +28,37 @@ export interface SheetRow {
 }
 
 /**
- * One capture across labels, sizes and modes (C11, E20). `file` is the image to show: the still when the sheet has one,
- * else the sheet composed of every still.
+ * One capture across labels, sizes and modes (C11, E20). `title` names the user, for `--sheet`; `heading` leaves it
+ * out, for the PR. `file` is the sheet composed of its stills, labels and sizes drawn in.
  */
 export interface EvidenceSheet {
   readonly key: SheetKey
   readonly title: string
+  readonly heading: string
   readonly file: string
   readonly variants: ReadonlyArray<SheetVariant>
   readonly rows: ReadonlyArray<SheetRow>
 }
 
-export interface EvidenceFlow {
-  readonly label: string
-  readonly name: string
-  readonly size: Size
-  readonly video: string
-  readonly stills: ReadonlyArray<FlowStill>
-  readonly stoppedAt: Option.Option<{ readonly step: string; readonly reason: string }>
+/** A sheet the agent picked, with what it says about it (`''`: nothing). */
+export interface PublishedSheet extends EvidenceSheet {
+  readonly note: string
 }
 
-export interface LabelledFinding {
-  readonly subject: string
-  readonly finding: Finding
-}
-
-export interface EvidenceFindings {
-  readonly label: string
-  readonly findings: ReadonlyArray<LabelledFinding>
-}
-
+/** What goes on the PR: only the sheets the agent picked (C11). */
 export interface EvidenceReport {
   readonly session: string
-  readonly sheets: ReadonlyArray<EvidenceSheet>
-  readonly flows: ReadonlyArray<EvidenceFlow>
-  readonly findings: ReadonlyArray<EvidenceFindings>
-  readonly summary: {
-    readonly captures: number
-    readonly flows: number
-    readonly errors: number
-    readonly warnings: number
-  }
+  readonly sheets: ReadonlyArray<PublishedSheet>
+}
+
+/** What the agent publishes; shot adds nothing (C11). */
+export interface PublishRequest {
+  /** In the order given, a row each; at least one. */
+  readonly labels: ReadonlyArray<string>
+  /** Case-insensitive parts of sheet titles; with no `sheets` and no `notes`, every sheet of the labels. */
+  readonly sheets: ReadonlyArray<string>
+  /** Part of a sheet title → a line under that sheet; also picks the sheet. */
+  readonly notes: Readonly<Record<string, string>>
 }
 
 /** Composed sheets live next to the report. */
@@ -85,6 +73,8 @@ const cellFromResult = (result: CaptureResult | undefined): EvidenceCell => {
     FailedCaptureResult: () => FailedCell.make({}),
   })
 }
+
+const isShot = (cell: EvidenceCell) => Predicate.isTagged(cell, 'ShotCell')
 
 const modeOrder: ReadonlyArray<Mode> = ['light', 'dark']
 
@@ -101,21 +91,32 @@ const variantOfResult = (result: CaptureResult): SheetVariant => ({
   mode: result.capture.variant.mode,
 })
 
-/**
- * Stills grouped by sheet key: a row per label in session order, a column per size and mode, narrowest first, light
- * before dark; findings and flows per label (C11, E20).
- */
-export const evidenceReportFromSession = (session: Session): EvidenceReport => {
+/** The capture's source and part, user included: what `--sheet` matches. */
+export const sheetTitle = (capture: Capture): string =>
+  `${sourceDescription(capture.source)} › ${Option.getOrElse(capture.name, () => partDescription(capture.part))}`
+
+/** The title without the user: the PR's reader knows who the app shows. */
+export const sheetHeading = (capture: Capture): string => {
+  const source = Match.valueTags(capture.source, {
+    RouteSource: ({ path, params }) =>
+      [path, ...Object.entries(params).map(([name, value]) => `${name}=${value}`)].join(' '),
+    UrlSource: () => sourceDescription(capture.source),
+  })
+
+  return `${source} › ${Option.getOrElse(capture.name, () => partDescription(capture.part))}`
+}
+
+/** Stills grouped by sheet key: a row per label in session order, a column per size and mode, narrowest first, light before dark (C11, E20). */
+export const evidenceSheetsFromSession = (session: Session): ReadonlyArray<EvidenceSheet> => {
   const stills = session.labels.map((entry) => ({
     label: entry.label,
     results: entry.captures.filter((result) => Predicate.isTagged(result.capture.output, 'Still')),
   }))
 
   const all = stills.flatMap((entry) => entry.results)
-  const captureKeys = new Set(all.map((result) => result.key))
   const keys = [...new Set(all.map((result) => sheetKey(result.capture)))]
 
-  const sheets = keys.flatMap((key): ReadonlyArray<EvidenceSheet> => {
+  return keys.flatMap((key): ReadonlyArray<EvidenceSheet> => {
     const results = all.filter((result) => sheetKey(result.capture) === key)
     const capture = results[0]!.capture
     const variants = uniqueVariants(results.map(variantOfResult))
@@ -134,80 +135,88 @@ export const evidenceReportFromSession = (session: Session): EvidenceReport => {
         ),
       }))
 
-    const shot = rows.flatMap((row) => row.cells.filter((cell) => Predicate.isTagged(cell, 'ShotCell')))
-
-    if (shot.length === 0) return []
+    if (!rows.some((row) => row.cells.some(isShot))) return []
 
     return [
       {
         key,
-        title: `${sourceDescription(capture.source)} › ${Option.getOrElse(capture.name, () => partDescription(capture.part))}`,
-        file: shot.length === 1 ? shot[0]!.file : sheetFileFromKey({ dir: session.dir, key }),
+        title: sheetTitle(capture),
+        heading: sheetHeading(capture),
+        file: sheetFileFromKey({ dir: session.dir, key }),
         variants,
         rows,
       },
     ]
   })
+}
 
-  const flows = session.labels.flatMap((entry) =>
-    entry.flows.map((flow): EvidenceFlow => ({
-      label: entry.label,
-      name: flow.flow.name,
-      size: flow.flow.size,
-      video: flow.video,
-      stills: flow.stills,
-      stoppedAt: Match.valueTags(flow, {
-        StoppedFlow: ({ failedStep, reason }) => Option.some({ step: failedStep, reason }),
-        CompletedFlow: () => Option.none(),
-      }),
-    })),
-  )
+/** The sheet with only `labels`' rows, in their order, and only the columns one of them has a still in. */
+const sheetForLabels = (sheet: EvidenceSheet, labels: ReadonlyArray<string>): Option.Option<EvidenceSheet> => {
+  const rows = labels.flatMap((label) => sheet.rows.filter((row) => row.label === label))
+  const kept = sheet.variants.flatMap((_, index) => (rows.some((row) => isShot(row.cells[index]!)) ? [index] : []))
 
-  const findings = session.labels
-    .map((entry): EvidenceFindings => ({
-      label: entry.label,
-      findings: [
-        ...entry.captures.flatMap((result) =>
-          result.findings.map((finding) => ({
-            subject: `${sourceDescription(result.capture.source)} › ${partDescription(result.capture.part)} (${sizeDescription(result.capture.variant.size)}, ${result.capture.variant.mode})`,
-            finding,
-          })),
-        ),
-        ...entry.flows.flatMap((flow) =>
-          Match.valueTags(flow, {
-            StoppedFlow: ({ failedStep, reason }) => [
-              {
-                subject: `flow ${flow.flow.name} (${sizeDescription(flow.flow.size)})`,
-                finding: {
-                  check: 'flow',
-                  severity: 'error' as const,
-                  message: `step ${failedStep}: ${reason}`,
-                  selector: '',
-                  rect: Option.none(),
-                },
-              },
-            ],
-            CompletedFlow: () => [],
-          }),
-        ),
-      ],
-    }))
-    .filter((group) => group.findings.length > 0)
+  if (kept.length === 0) return Option.none()
 
-  const listed = findings.flatMap((group) => group.findings)
+  return Option.some({
+    ...sheet,
+    variants: kept.map((index) => sheet.variants[index]!),
+    rows: rows.map((row) => ({ label: row.label, cells: kept.map((index) => row.cells[index]!) })),
+  })
+}
 
-  return {
-    session: session.name,
-    sheets,
-    flows,
-    findings,
-    summary: {
-      captures: captureKeys.size,
-      flows: flows.length,
-      errors: listed.filter(({ finding }) => finding.severity === 'error').length,
-      warnings: listed.filter(({ finding }) => finding.severity === 'warn').length,
-    },
+const titleMatches = (title: string, needle: string) => title.toLowerCase().includes(needle.toLowerCase())
+
+/**
+ * The sheets the agent picked, a row per named label in its order, each with its note (C11). Every `--sheet` and
+ * `--note` must match a sheet: a typo fails instead of publishing less than the agent meant.
+ */
+export const evidenceReportFromSession = ({
+  session,
+  request,
+}: {
+  readonly session: Session
+  readonly request: PublishRequest
+}): Result.Result<EvidenceReport, LabelNotFoundError | SheetNotFoundError | NoEvidenceError> => {
+  const labels: Array<string> = []
+
+  for (const name of request.labels) {
+    const label = labelFromName({ session, name })
+
+    if (label === undefined) {
+      return Result.fail(
+        new LabelNotFoundError({ label: name, labels: session.labels.map((entry) => labelDisplayName(entry.label)) }),
+      )
+    }
+
+    if (!labels.includes(label)) labels.push(label)
   }
+
+  const all = evidenceSheetsFromSession(session).flatMap((sheet) => Option.toArray(sheetForLabels(sheet, labels)))
+
+  if (all.length === 0) return Result.fail(new NoEvidenceError({ labels: labels.map(labelDisplayName) }))
+
+  const notes = Object.entries(request.notes)
+  const needles = [...request.sheets, ...notes.map(([needle]) => needle)]
+
+  for (const needle of needles) {
+    if (!all.some((sheet) => titleMatches(sheet.title, needle))) {
+      return Result.fail(new SheetNotFoundError({ sheet: needle, titles: all.map((sheet) => sheet.title) }))
+    }
+  }
+
+  const picked =
+    needles.length === 0 ? all : all.filter((sheet) => needles.some((needle) => titleMatches(sheet.title, needle)))
+
+  return Result.succeed({
+    session: session.name,
+    sheets: picked.map((sheet) => ({
+      ...sheet,
+      note: notes
+        .filter(([needle]) => titleMatches(sheet.title, needle))
+        .map(([, note]) => note.trim())
+        .join(' '),
+    })),
+  })
 }
 
 /** A heading over a column or a run of columns; a mode heading carries its mode, for its icon. */
@@ -254,9 +263,11 @@ const sheetModes = (sheet: EvidenceSheet) =>
  */
 export const sheetGridFromSheet = (sheet: EvidenceSheet): SheetGrid => {
   if (sheet.variants.length === 1) {
+    const variant = sheet.variants[0]!
+
     return {
-      groups: [],
-      columns: sheet.rows.map((row) => heading(labelDisplayName(row.label))),
+      groups: [heading(sizeDescription(variant.size), Option.some(variant.mode), sheet.rows.length)],
+      columns: sheet.rows.map((row) => heading(row.label)),
       rows: [{ label: '', cells: sheet.rows.map((row) => row.cells[0]!) }],
     }
   }
@@ -264,6 +275,7 @@ export const sheetGridFromSheet = (sheet: EvidenceSheet): SheetGrid => {
   const sizes = sheetSizes(sheet)
   const byMode = sheetModes(sheet).length > 1
   const modeHeading = (variant: SheetVariant) => heading(variant.mode, Option.some(variant.mode))
+  const sizeHeading = (variant: SheetVariant) => heading(sizeDescription(variant.size), Option.some(variant.mode))
 
   return {
     groups:
@@ -276,9 +288,9 @@ export const sheetGridFromSheet = (sheet: EvidenceSheet): SheetGrid => {
             ),
           )
         : [],
-    columns: sheet.variants.map((variant) => (byMode ? modeHeading(variant) : heading(sizeDescription(variant.size)))),
+    columns: sheet.variants.map((variant) => (byMode ? modeHeading(variant) : sizeHeading(variant))),
     rows: sheet.rows.map((row) => ({
-      label: sheet.rows.length === 1 ? '' : labelDisplayName(row.label),
+      label: sheet.rows.length === 1 ? '' : row.label,
       cells: row.cells,
     })),
   }
@@ -286,99 +298,19 @@ export const sheetGridFromSheet = (sheet: EvidenceSheet): SheetGrid => {
 
 export const variantDescription = (variant: SheetVariant): string => `${sizeDescription(variant.size)}, ${variant.mode}`
 
-const cellNote = (cell: EvidenceCell): Option.Option<string> =>
-  Match.valueTags(cell, {
-    ShotCell: () => Option.none(),
-    FailedCell: () => Option.some('failed'),
-    MissingCell: () => Option.some('not shot'),
-  })
-
 /**
- * What the image does not show: the size and mode all its stills share, e.g. `1280×900, dark`. A sheet of one still
- * also names its label and the stills that failed or were not shot: `after · 1280×900, light · before failed`.
+ * The report as markdown: per sheet its heading, the agent's note and the image, by its project-relative path, which
+ * `gh --attach` replaces. Labels, sizes and modes are drawn on the image.
  */
-const sheetCaption = (sheet: EvidenceSheet): string => {
-  const sizes = sheetSizes(sheet)
-  const modes = sheetModes(sheet)
-  const shared = [...(sizes.length === 1 ? [sizeDescription(sizes[0]!)] : []), ...(modes.length === 1 ? modes : [])]
-  const cells = sheet.rows.flatMap((row) => row.cells.map((cell, index) => ({ label: row.label, cell, index })))
-  const still = cells.find(({ cell }) => Predicate.isTagged(cell, 'ShotCell') && cell.file === sheet.file)
-
-  if (still === undefined) return shared.join(', ')
-
-  const notes = cells.flatMap(({ label, cell, index }) =>
-    Option.toArray(
-      Option.map(cellNote(cell), (note) =>
-        [
-          labelDisplayName(label),
-          ...(sheet.variants.length > 1 ? [`at ${variantDescription(sheet.variants[index]!)}`] : []),
-          note,
-        ].join(' '),
+export const evidenceMarkdownFromReport = (report: EvidenceReport): string =>
+  report.sheets
+    .map((sheet) =>
+      [`**${sheet.heading}**`, ...(sheet.note === '' ? [] : [sheet.note]), `![${sheet.key}](${sheet.file})`].join(
+        '\n\n',
       ),
-    ),
-  )
-
-  return [
-    ...(still.label === '' ? [] : [still.label]),
-    ...(sheet.variants.length > 1 ? [variantDescription(sheet.variants[still.index]!)] : [shared.join(', ')]),
-    ...notes,
-  ].join(' · ')
-}
-
-const plural = (count: number, one: string) => `${count} ${count === 1 ? one : `${one}s`}`
-
-/**
- * The report as markdown; images and videos by their project-relative paths, which `gh --attach` replaces. No heading,
- * and the counts only when there are findings: a clean run is its sheets.
- */
-export const evidenceMarkdownFromReport = (report: EvidenceReport): string => {
-  const lines: Array<string> = []
-  const { errors, warnings } = report.summary
-
-  if (errors + warnings > 0) lines.push(`${plural(errors, 'error')}, ${plural(warnings, 'warning')}.`, '')
-
-  for (const sheet of report.sheets) {
-    const caption = sheetCaption(sheet)
-    lines.push(`**${sheet.title}**${caption === '' ? '' : ` · ${caption}`}`, '', `![${sheet.key}](${sheet.file})`, '')
-  }
-
-  for (const flow of report.flows) {
-    const outcome = Option.match(flow.stoppedAt, {
-      onNone: () => `${plural(flow.stills.length, 'step')} passed`,
-      onSome: ({ step, reason }) => `stopped at ${step}: ${reason}`,
-    })
-
-    lines.push(
-      `**Flow ${flow.name}** (${labelDisplayName(flow.label)}, ${sizeDescription(flow.size)}) · ${outcome}`,
-      '',
-      flow.video,
-      '',
     )
-
-    if (flow.stills.length > 0) {
-      lines.push('<details><summary>Steps</summary>', '')
-
-      for (const still of flow.stills) lines.push(`${still.step}`, '', `![${still.step}](${still.file})`, '')
-      lines.push('</details>', '')
-    }
-  }
-
-  for (const group of report.findings) {
-    lines.push(`<details><summary>Findings · ${labelDisplayName(group.label)} (${group.findings.length})</summary>`, '')
-
-    for (const { subject, finding } of group.findings) {
-      const selector = finding.selector === '' ? '' : ` (\`${finding.selector}\`)`
-      lines.push(`- ${finding.severity} ${finding.check} · ${subject}: ${finding.message}${selector}`)
-    }
-
-    lines.push('', '</details>', '')
-  }
-
-  return lines.join('\n').trimEnd()
-}
+    .join('\n\n')
 
 /** Every local file the markdown references: what `gh --attach` uploads. */
-export const evidenceFilesFromReport = (report: EvidenceReport): ReadonlyArray<string> => [
-  ...report.sheets.map((sheet) => sheet.file),
-  ...report.flows.flatMap((flow) => [flow.video, ...flow.stills.map((still) => still.file)]),
-]
+export const evidenceFilesFromReport = (report: EvidenceReport): ReadonlyArray<string> =>
+  report.sheets.map((sheet) => sheet.file)

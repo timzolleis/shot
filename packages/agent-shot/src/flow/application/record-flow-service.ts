@@ -21,6 +21,7 @@ import { ShotConfig } from '../../plugin/shot-config.ts'
 import { CompletedFlow, type Flow, type FlowResult, type FlowStill, StoppedFlow } from '../domain/flow.ts'
 import { FlowInvalidError, FlowNotFoundError } from '../domain/flow-error.ts'
 import { FlowDefinition } from './define-flow.ts'
+import { writeProgress } from '../../infrastructure/progress.ts'
 
 export interface RecordFlowCommand {
   /** A flow name (`shots/<name>.flow.ts`) or a file. */
@@ -154,7 +155,7 @@ export const RecordFlowServiceLayer = Layer.effect(
 
             const step = async <A>(stepName: string, action: () => Hook<A>) => {
               if (Option.isSome(stopped)) throw new FlowStopped()
-              process.stderr.write(`step ${stepName}\n`)
+              writeProgress(`step ${stepName}`)
 
               try {
                 await Effect.runPromise(effectFromHook(action, (message) => new Error(message)))
@@ -212,7 +213,7 @@ export const RecordFlowServiceLayer = Layer.effect(
             limitBytes: config.videoLimitBytes,
           })
 
-          process.stderr.write(`video: ${sizeText(encoded.bytes)} at ${encoded.width} wide\n`)
+          writeProgress(`video: ${sizeText(encoded.bytes)} at ${encoded.width} wide`)
           yield* Effect.promise(() => rm(recordingDir, { recursive: true, force: true }))
         }
 

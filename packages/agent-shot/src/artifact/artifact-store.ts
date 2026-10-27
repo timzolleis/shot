@@ -37,7 +37,7 @@ export class ArtifactStore extends Context.Service<
     makeFlowDir(input: { readonly label: string; readonly flow: Flow }): Effect.Effect<string>
     writeFlowResult(input: { readonly label: string; readonly flowResult: FlowResult }): Effect.Effect<void>
     readSession(): Effect.Effect<Session>
-    /** Composes the multi-label sheets, writes report.md, returns its path. */
+    /** Composes every sheet, writes report.md, returns its path. */
     writeReport(report: EvidenceReport): Effect.Effect<string>
     readHostDefaults(host: string): Effect.Effect<Option.Option<HostDefaults>>
     writeHostDefaults(input: { readonly host: string } & HostDefaults): Effect.Effect<void>

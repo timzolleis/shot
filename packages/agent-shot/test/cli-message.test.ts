@@ -37,7 +37,7 @@ const errors: ReadonlyArray<ShotError> = [
   new core.GhCommandFailedError({ command: 'gh pr edit', stderr: 'HTTP 502\nretry' }),
   new core.NoPushAccessError({ repository: 'acme/shot', permission: 'READ' }),
   new core.NoPullRequestError({ branch: 'feat/x' }),
-  new core.NoEvidenceError({ session: 'local' }),
+  new core.NoEvidenceError({ labels: ['before', 'after'] }),
   new core.PublisherNotFoundError({ publisher: '', available: [] }),
   new core.PublishFailedError({ publisher: 'slack', message: 'channel not found' }),
   new core.ShotConfigInvalidError({ file: 'shot.config.ts', reason: 'Unexpected token' }),

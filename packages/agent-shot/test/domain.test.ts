@@ -25,6 +25,7 @@ import {
 import {
   evidenceMarkdownFromReport,
   evidenceReportFromSession,
+  evidenceSheetsFromSession,
   sheetGridFromSheet,
 } from '../src/evidence/domain/evidence-report.ts'
 import { evidenceEndMarker, evidenceStartMarker, prBodyWithEvidence } from '../src/evidence/domain/pr-body.ts'
@@ -155,7 +156,7 @@ describe('prBodyWithEvidence (12)', () => {
   })
 })
 
-describe('evidenceReportFromSession (11)', () => {
+describe('evidenceSheetsFromSession (11)', () => {
   it('same capture key under before and after → one sheet, two columns', () => {
     const capture = onlyCapture(defaultShootFlags)
     const key = captureKey(capture)
@@ -172,10 +173,10 @@ describe('evidenceReportFromSession (11)', () => {
       ],
     }
 
-    const report = evidenceReportFromSession(session)
-    expect(report.sheets).toHaveLength(1)
-    expect(report.sheets[0]!.rows.map((row) => row.label)).toEqual(['before', 'after'])
-    expect(report.sheets[0]!.file).toBe(`.shots/s/report/${sheetKey(capture)}.png`)
+    const sheets = evidenceSheetsFromSession(session)
+    expect(sheets).toHaveLength(1)
+    expect(sheets[0]!.rows.map((row) => row.label)).toEqual(['before', 'after'])
+    expect(sheets[0]!.file).toBe(`.shots/s/report/${sheetKey(capture)}.png`)
   })
 })
 
@@ -281,8 +282,8 @@ describe('sheets across sizes (20)', () => {
   const sessionOf = (labels: Session['labels']): Session => ({ name: 's', dir: '.shots/s', labels })
 
   /** The first sheet's grid as text: `title ×span` groups, `title (mode)` columns, `label: cell tags` rows. */
-  const gridOf = (report: ReturnType<typeof evidenceReportFromSession>) => {
-    const grid = sheetGridFromSheet(report.sheets[0]!)
+  const gridOf = (sheets: ReturnType<typeof evidenceSheetsFromSession>) => {
+    const grid = sheetGridFromSheet(sheets[0]!)
 
     return {
       groups: grid.groups.map((group) => `${group.title} ×${group.span}`),
@@ -294,7 +295,7 @@ describe('sheets across sizes (20)', () => {
   }
 
   const cellTags = (session: Session) =>
-    evidenceReportFromSession(session).sheets.map((sheet) => ({
+    evidenceSheetsFromSession(session).map((sheet) => ({
       sizes: sheet.variants.map((variant) => sizeDescription(variant.size)),
       rows: sheet.rows.map((row) => `${row.label}: ${row.cells.map((cell) => cell._tag).join(' ')}`),
     }))
@@ -311,11 +312,9 @@ describe('sheets across sizes (20)', () => {
       { sizes: ['iPhone 15', '1440×900'], rows: ['before: ShotCell ShotCell', 'after: ShotCell ShotCell'] },
     ])
 
-    const report = evidenceReportFromSession(session)
-    expect(report.summary.captures).toBe(2)
-    expect(gridOf(report)).toEqual({
+    expect(gridOf(evidenceSheetsFromSession(session))).toEqual({
       groups: [],
-      columns: ['iPhone 15', '1440×900'],
+      columns: ['iPhone 15 (light)', '1440×900 (light)'],
       rows: ['before: ShotCell ShotCell', 'after: ShotCell ShotCell'],
     })
   })
@@ -341,8 +340,8 @@ describe('sheets across sizes (20)', () => {
       { label: 'after', captures: [captured({ label: 'after', capture: atSize(defaultSize) })], flows: [] },
     ])
 
-    expect(gridOf(evidenceReportFromSession(session))).toEqual({
-      groups: [],
+    expect(gridOf(evidenceSheetsFromSession(session))).toEqual({
+      groups: ['1280×900 ×2'],
       columns: ['before', 'after'],
       rows: [': ShotCell ShotCell'],
     })
@@ -357,7 +356,7 @@ describe('sheets across sizes (20)', () => {
       { label: 'after', captures: shots('after'), flows: [] },
     ])
 
-    expect(gridOf(evidenceReportFromSession(session))).toEqual({
+    expect(gridOf(evidenceSheetsFromSession(session))).toEqual({
       groups: [],
       columns: ['light (light)', 'dark (dark)'],
       rows: ['before: ShotCell ShotCell', 'after: ShotCell ShotCell'],
@@ -375,7 +374,7 @@ describe('sheets across sizes (20)', () => {
       { label: 'after', captures: shots('after'), flows: [] },
     ])
 
-    expect(gridOf(evidenceReportFromSession(session))).toEqual({
+    expect(gridOf(evidenceSheetsFromSession(session))).toEqual({
       groups: ['iPhone 15 ×2', '1440×900 ×2'],
       columns: ['light (light)', 'dark (dark)', 'light (light)', 'dark (dark)'],
       rows: ['before: ShotCell ShotCell ShotCell ShotCell', 'after: ShotCell ShotCell ShotCell ShotCell'],
@@ -391,7 +390,7 @@ describe('sheets across sizes (20)', () => {
       },
     ])
 
-    expect(gridOf(evidenceReportFromSession(session))).toEqual({
+    expect(gridOf(evidenceSheetsFromSession(session))).toEqual({
       groups: [],
       columns: ['light (light)', 'dark (dark)'],
       rows: [': ShotCell ShotCell'],
@@ -410,52 +409,104 @@ describe('sheets across sizes (20)', () => {
     ])
 
     expect(
-      evidenceReportFromSession(session).sheets[0]!.rows[0]!.cells.map((cell) =>
+      evidenceSheetsFromSession(session)[0]!.rows[0]!.cells.map((cell) =>
         Predicate.isTagged(cell, 'ShotCell') ? cell.scale : 0,
       ),
     ).toEqual([2, 1])
   })
+})
 
-  it('markdown of a clean run → no heading, no counts; a sheet per capture with what its image does not show', () => {
-    const shots = (label: string) =>
-      [atSize(defaultSize), atSize(defaultSize, 'dark')].map((capture) => captured({ label, capture }))
+describe('evidenceReportFromSession: what the agent publishes (11)', () => {
+  const page = onlyCapture(defaultShootFlags)
+  const people = onlyCapture({ ...defaultShootFlags, sections: ['People'] })
 
-    const session = sessionOf([
-      { label: 'before', captures: shots('before'), flows: [] },
-      { label: 'after', captures: shots('after'), flows: [] },
+  const captured = ({ label, capture }: { readonly label: string; readonly capture: Capture }): CaptureResult => {
+    const key = captureKey(capture)
+
+    return CapturedResult.make({ capture, key, file: `.shots/s/${label}/${key}.png`, measurements: null, findings: [] })
+  }
+
+  const session: Session = {
+    name: 's',
+    dir: '.shots/s',
+    labels: [
+      { label: '', captures: [captured({ label: '', capture: page })], flows: [] },
+      { label: 'before', captures: [page, people].map((capture) => captured({ label: 'before', capture })), flows: [] },
+      { label: 'after', captures: [page, people].map((capture) => captured({ label: 'after', capture })), flows: [] },
+    ],
+  }
+
+  const publish = (request: Partial<Parameters<typeof evidenceReportFromSession>[0]['request']>) =>
+    evidenceReportFromSession({ session, request: { labels: [], sheets: [], notes: {}, ...request } })
+
+  const sheetsOf = (request: Parameters<typeof publish>[0]) =>
+    Result.getOrThrow(publish(request)).sheets.map(
+      (sheet) => `${sheet.heading} | ${sheet.rows.map((row) => row.label).join(',')} | ${sheet.note}`,
+    )
+
+  it('labels only → every sheet of those labels, rows in the order named; unlabelled scratch stays out', () => {
+    expect(sheetsOf({ labels: ['after', 'before'] })).toEqual([
+      '/app/persons › page | after,before | ',
+      '/app/persons › People | after,before | ',
     ])
+  })
 
-    const report = evidenceReportFromSession(session)
+  it('--note picks its sheet and puts its text under it', () => {
+    expect(sheetsOf({ labels: ['before', 'after'], notes: { people: 'Invite moved into the header' } })).toEqual([
+      '/app/persons › People | before,after | Invite moved into the header',
+    ])
+  })
+
+  it('markdown → per sheet its heading, the note and the image; nothing else', () => {
+    const report = Result.getOrThrow(publish({ labels: ['before', 'after'], notes: { People: 'Invite moved' } }))
+    const sheet = report.sheets[0]!
+
     expect(evidenceMarkdownFromReport(report)).toBe(
-      `**/app/persons as admin@example.org › page** · 1280×900\n\n![${report.sheets[0]!.key}](${report.sheets[0]!.file})`,
+      `**/app/persons › People**\n\nInvite moved\n\n![${sheet.key}](.shots/s/report/${sheet.key}.png)`,
     )
   })
 
-  it('markdown with findings → counts first; one still → its label, variant and the failed cell', () => {
-    const capture = atSize(defaultSize, 'dark')
-    const shot = captured({ label: 'after', capture })
+  it('a label shot at fewer sizes → only the columns it has a still in', () => {
+    const atPhone = onlyCapture({ ...defaultShootFlags, sizes: [phone] })
 
-    const session = sessionOf([
-      { label: 'before', captures: [failed(capture)], flows: [] },
-      {
-        label: 'after',
-        captures: [
-          {
-            ...shot,
-            findings: [
-              { check: 'axe', severity: 'warn', message: 'low contrast', selector: '#a', rect: Option.none() },
-            ],
-          },
-        ],
-        flows: [],
-      },
-    ])
+    const sized: Session = {
+      ...session,
+      labels: [
+        { label: '', captures: [captured({ label: '', capture: page })], flows: [] },
+        { label: 'after', captures: [captured({ label: 'after', capture: atPhone })], flows: [] },
+      ],
+    }
 
-    expect(evidenceMarkdownFromReport(evidenceReportFromSession(session)).split('\n').slice(0, 3)).toEqual([
-      '0 errors, 1 warning.',
-      '',
-      '**/app/persons as admin@example.org › page** · after · 1280×900, dark · before failed',
-    ])
+    const report = Result.getOrThrow(
+      evidenceReportFromSession({ session: sized, request: { labels: ['after'], sheets: [], notes: {} } }),
+    )
+
+    expect(report.sheets[0]!.variants.map((variant) => sizeDescription(variant.size))).toEqual(['iPhone 15'])
+  })
+
+  it.each([
+    { request: { labels: ['final'] }, expected: 'LabelNotFoundError' },
+    { request: { labels: ['after'], sheets: ['Sidebar'] }, expected: 'SheetNotFoundError' },
+    { request: { labels: ['after'], notes: { Sidebar: 'x' } }, expected: 'SheetNotFoundError' },
+  ])('$request → $expected', ({ request, expected }) => {
+    expect(failureTag(publish(request))).toBe(expected)
+  })
+
+  it('a label with only failed stills → NoEvidenceError', () => {
+    const broken: Session = {
+      ...session,
+      labels: [
+        {
+          label: 'after',
+          captures: [FailedCaptureResult.make({ capture: page, key: captureKey(page), findings: [] })],
+          flows: [],
+        },
+      ],
+    }
+
+    expect(
+      failureTag(evidenceReportFromSession({ session: broken, request: { labels: ['after'], sheets: [], notes: {} } })),
+    ).toBe('NoEvidenceError')
   })
 })
 

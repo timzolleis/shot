@@ -1,4 +1,4 @@
-import { Effect, FileSystem, Layer, Match, Option, Predicate, Schema } from 'effect'
+import { Effect, FileSystem, Layer, Match, Option, Schema } from 'effect'
 import path from 'node:path'
 
 import { ArtifactStore } from '../artifact/artifact-store.ts'
@@ -165,12 +165,6 @@ export const FileArtifactStoreLayer = Layer.effect(
       writeReport: (report) =>
         Effect.gen(function* () {
           for (const sheet of report.sheets) {
-            // One still: the sheet shows it as is.
-            if (
-              sheet.rows.flatMap((row) => row.cells).filter((cell) => Predicate.isTagged(cell, 'ShotCell')).length < 2
-            )
-              continue
-
             const grid = sheetGridFromSheet(sheet)
 
             const rows = yield* Effect.forEach(grid.rows, (row) =>

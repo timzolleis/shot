@@ -74,6 +74,7 @@ const store = Layer.succeed(
     makeFlowDir: unused,
     writeFlowResult: unused,
     readSession: unused,
+    readLabel: unused,
     writeReport: unused,
     readHostDefaults: unused,
     writeHostDefaults: unused,

@@ -25,7 +25,7 @@ import { Argument, CliError, Command, Flag } from 'effect/cli'
 import { readFileSync } from 'node:fs'
 
 import { FillValue, LabelValue, stepsFromArgv } from './flags.ts'
-import { anyErrorFinding, displayPath, printCaptureResults, printLine } from './output.ts'
+import { displayPath, findingsReportAgainstBase, isFailingReport, printCaptureResults, printLine } from './output.ts'
 
 const asFlag = Flag.String('as').pipe(
   Flag.withDescription('the user: an alias from the config, or an email'),
@@ -144,7 +144,16 @@ const shootFlags = {
     Flag.withDefault(false),
   ),
   check: Flag.Boolean('check').pipe(
-    Flag.withDescription("run the checks (overflow, target, focus, align, plugins')"),
+    Flag.withDescription("run the checks (overflow, target, focus, align, plugins'); prints what --base does not have"),
+    Flag.withDefault(false),
+  ),
+  base: Flag.String('base').pipe(
+    Flag.withSchema(LabelValue),
+    Flag.withDescription('the label whose findings are not new (default before)'),
+    Flag.withDefault('before'),
+  ),
+  warnings: Flag.Boolean('warnings').pipe(
+    Flag.withDescription('list warnings, not only their count'),
     Flag.withDefault(false),
   ),
   name: Flag.String('name').pipe(Flag.withDescription('name the files instead of the generated slug'), Flag.optional),
@@ -184,16 +193,13 @@ const shootFlagsFromInput = (input: ShootInput): ShootFlags => ({
 const encodeResultsJson = Schema.encodeSync(Schema.toCodecJson(Schema.Array(CaptureResult)))
 
 /** The element map is for `shot review`, in the manifest: printing it would bury the results an agent reads. */
-const withoutElementMap = (result: CaptureResult): CaptureResult =>
-  Predicate.isTagged(result, 'CapturedResult')
-    ? CapturedResult.make({
-        capture: result.capture,
-        key: result.key,
-        file: result.file,
-        measurements: result.measurements,
-        findings: result.findings,
-      })
-    : result
+const withoutElementMap = (result: CaptureResult): CaptureResult => {
+  if (!Predicate.isTagged(result, 'CapturedResult')) return result
+
+  const { _tag, elements: _elements, ...rest } = result
+
+  return CapturedResult.make(rest)
+}
 
 const encodeFlowJson = Schema.encodeSync(Schema.toCodecJson(FlowResult))
 
@@ -210,10 +216,14 @@ export const shot = Command.make('shot', shootFlags, (input) =>
       runChecks: input.check,
     })
 
-    if (input.json) yield* printLine(JSON.stringify(encodeResultsJson(results.map(withoutElementMap)), null, 2))
-    else yield* printCaptureResults(results)
+    const store = yield* ArtifactStore
+    const base = input.label === input.base ? undefined : yield* store.readLabel(input.base)
+    const report = findingsReportAgainstBase({ results, base })
 
-    if (anyErrorFinding(results)) process.exitCode = 1
+    if (input.json) yield* printLine(JSON.stringify(encodeResultsJson(results.map(withoutElementMap)), null, 2))
+    else yield* printCaptureResults({ report, base: input.base, warnings: input.warnings })
+
+    if (isFailingReport(report)) process.exitCode = 1
   }),
 ).pipe(
   Command.withDescription('Shoot an app path or a URL: stills, overlays, measurements, checks.'),

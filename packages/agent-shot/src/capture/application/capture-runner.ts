@@ -373,6 +373,7 @@ export const CaptureRunnerLayer = Layer.effect(
                 key,
                 file,
                 measurements,
+                checked: runChecks,
                 // Console errors belong to the page load: reported once, on its first capture.
                 findings:
                   index === 0

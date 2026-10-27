@@ -5,7 +5,7 @@ description: Screenshot UI work with the shot CLI (agent-shot): stills of app pa
 
 # shot
 
-`shot` drives Chromium against the running app. stdout: one path per PNG, then one line per finding. Exit 1: a capture failed or an `error` finding. Exit 2: a usage mistake.
+`shot` drives Chromium against the running app. stdout: one path per PNG, one line per error finding, then one line of notes (warning count, findings `before` has too). Exit 1: a capture failed or a new `error` finding. Exit 2: a usage mistake.
 
 ## Prove a UI change
 
@@ -13,7 +13,7 @@ description: Screenshot UI work with the shot CLI (agent-shot): stills of app pa
 2. Shoot the old state: `git stash -u && shot <path> --as <user> --label before [flags]`.
 3. Shoot the new state with the same flags: `git stash pop && shot <path> --as <user> --label after [flags]`. Same flags give the same file name under `before/` and `after/`, and one sheet on the PR. Complete when every `after` path has a `before` twin.
 4. Read each pair. Complete when you can name what changed and what did not, at each size you shot.
-5. Add `--check` to the after run. Fix the `error` findings your change caused; findings `before` has too are not yours.
+5. Run `--check` on both states. The after run prints only findings `before` does not have: those are yours. Fix its `error` findings. Complete when the after run exits 0.
 6. Publish: `shot publish before after --note "<part of a sheet title>=<what changed, one sentence>"`. Complete when it printed the PR's URL.
 
 Shot does not run git. A dev server with hot reload serves the stashed state; one that builds once needs a restart.
@@ -56,7 +56,8 @@ shot ./compare.html?variant=c                                        # a local H
 --click a --fill '#name=Ada' --key Enter --wait 300 --hover b --focus c --press d
                        the scene, in order; hover, focus and press run last and hold
 --overlay boxes|gaps|edges|type|grid   --loupe 4   --measure [--style x] [--all]   --aria   --frames 8 [--every 50]
---check                overflow, target, focus, align, plugin checks
+--check                overflow, target, focus, align, plugin checks; prints what --base (default before) lacks
+--warnings             list warnings, not only their count
 --label before         writes to .shots/<session>/before/
 --json                 results as JSON
 ```

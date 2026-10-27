@@ -5,15 +5,16 @@
 Coding agents change UI blind: they edit CSS, call the job done, and you find the broken phone layout in review. `shot` is a CLI that lets the agent see what it changed. It takes before and after stills of your app, runs layout and accessibility checks, records click-through flows, and puts the screenshots it picks in the pull request.
 
 ```sh
-git stash -u && shot /settings --as admin --label before
-git stash pop && shot /settings --as admin --label after --size phone --size desktop --check
+git stash -u && shot /settings --as admin --size phone --size desktop --check --label before
+git stash pop && shot /settings --as admin --size phone --size desktop --check --label after
 shot publish before after --note "Profile=Save button no longer wraps on phones"
 ```
 
 ```text
 .shots/a1b2/after/route-settings--profile-admin-iphone-15-light-4c1e9a.png
 .shots/a1b2/after/route-settings--profile-admin-1440x900-light-9f03d2.png
-warn target Profile (iPhone 15): touch target 67×40, under 44×44 (#save)
+error target Profile (iPhone 15): touch target 80×20, under 24×24 (#save)
+1 warning (--warnings lists them); 3 findings also in before
 ```
 
 ## Why use it
@@ -161,8 +162,8 @@ Each image is the still with your drawings burned in. Only the labels the agent 
 
 ## Output
 
-- **stdout:** one path per file, and one line per finding (`error`/`warn`, check, part, message). Add `--json` for structured output. Progress goes to stderr only on a terminal, so agents read only what they act on.
-- **Exit codes:** 0 when everything is ok. 1 on a render failure (500, redirect, timeout, failed step) or an error finding. 2 on a usage error.
+- **stdout:** one path per file, one line per error finding (`error`, check, part, message), then a note line: how many warnings (`--warnings` lists them) and how many findings `before` has too. With `--check` on both states, the after run shows only what the change added. Add `--json` for every finding. Progress goes to stderr only on a terminal, so agents read only what they act on.
+- **Exit codes:** 0 when everything is ok. 1 on a render failure (500, redirect, timeout, failed step) or an error finding `before` does not have. 2 on a usage error.
 - **Files:** `.shots/<session>/[<label>/]<source>--<slug>-<hash>.png`. A rerun overwrites the file. Review rounds go to `.shots/<session>/review/`. `shot clean` removes the session.
 
 ## Plugins

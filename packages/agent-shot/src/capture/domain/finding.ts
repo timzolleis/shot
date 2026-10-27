@@ -121,5 +121,26 @@ export const checksSettingFromConfig = ({
     : Result.fail(`unknown check "${unknown}" in checks; checks: ${known.join(', ')}`)
 }
 
+/** A finding across labels: check, selector and message without its repeat count, which a change can move. */
+const findingIdentity = (finding: Finding) =>
+  `${finding.check}|${finding.selector}|${finding.message.replace(/ \(×\d+\)$/, '')}`
+
+/**
+ * The findings the base (`before`) of the same capture does not have, and how many it does: those were there before the
+ * change. Render findings always stay: this capture failed, whatever the base did.
+ */
+export const findingsNewSinceBase = ({
+  findings,
+  base,
+}: {
+  readonly findings: ReadonlyArray<Finding>
+  readonly base: ReadonlyArray<Finding>
+}) => {
+  const known = new Set(base.map(findingIdentity))
+  const fresh = findings.filter((finding) => finding.check === 'render' || !known.has(findingIdentity(finding)))
+
+  return { findings: fresh, inBase: findings.length - fresh.length }
+}
+
 export const hasErrorFinding = (findings: ReadonlyArray<Finding>): boolean =>
   findings.some((finding) => finding.severity === 'error')

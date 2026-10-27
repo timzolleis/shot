@@ -130,6 +130,7 @@ export const FileArtifactStoreLayer = Layer.effect(
           path.join(manifestDir(label), `flow--${flowKey(flowResult.flow)}.json`),
           encodeFlowResult(flowResult),
         ),
+      readLabel,
       readSession: () =>
         Effect.gen(function* () {
           const root = absolutePath(sessionDir)

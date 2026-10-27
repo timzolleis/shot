@@ -23,6 +23,8 @@ export const CapturedResult = Schema.TaggedStruct('CapturedResult', {
   file: Schema.String,
   measurements: Schema.Json,
   findings: Schema.Array(Finding),
+  /** Whether `--check` ran: no findings from an unchecked capture says nothing. Older manifests have none. */
+  checked: Schema.optionalKey(Schema.Boolean),
   /** Stills only; manifests written before the element map have none. */
   elements: Schema.optionalKey(Schema.Array(PageElement)),
 })

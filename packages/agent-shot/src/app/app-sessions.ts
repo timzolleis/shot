@@ -8,6 +8,7 @@ import type { AppHookFailedError, AppHookMissingError, AppNotRunningError } from
 import { SessionLockTimeoutError } from './app-error.ts'
 import { AppHooks } from './app-hooks.ts'
 import { appSessionKey } from './app-user.ts'
+import { writeProgress } from '../infrastructure/progress.ts'
 
 /** A logged-in user's Playwright storage state, as a file. */
 export type StorageStateFile = string
@@ -86,7 +87,7 @@ export const AppSessionsLayer = Layer.effect(
     const logInTo = ({ url, file, user, params }: { url: string; file: string } & AppSessionInput) =>
       Effect.scoped(
         Effect.gen(function* () {
-          process.stderr.write(`login: ${user} at ${url}\n`)
+          writeProgress(`login: ${user} at ${url}`)
           const context = yield* browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1280, height: 900 } })
           const page = yield* Effect.promise(() => context.newPage())
           yield* hooks.logIn({ page, url, user, params })

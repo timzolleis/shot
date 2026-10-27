@@ -33,6 +33,7 @@ import {
   renderFindingFromReason,
 } from '../domain/finding.ts'
 import { type OpenSourceError, SourceProviders } from './source-providers.ts'
+import { writeProgress } from '../../infrastructure/progress.ts'
 
 /** Errors that end the whole run, not one capture: the app or its hooks. */
 export type RunPlanError = AppHookMissingError | AppHookFailedError | AppNotRunningError | SessionLockTimeoutError
@@ -338,7 +339,7 @@ export const CaptureRunnerLayer = Layer.effect(
           if (Result.isFailure(sceneRun)) {
             return captures.map((capture) =>
               failedResult(capture, [
-                ...consoleFindingsFromErrors(ready.consoleErrors),
+                ...checks.findingsAtLevels(consoleFindingsFromErrors(ready.consoleErrors)),
                 renderFindingFromReason(reasonFromCaptureFailure(sceneRun.failure)),
               ]),
             )
@@ -372,10 +373,14 @@ export const CaptureRunnerLayer = Layer.effect(
                 key,
                 file,
                 measurements,
+                checked: runChecks,
                 // Console errors belong to the page load: reported once, on its first capture.
                 findings:
                   index === 0
-                    ? collapsedFindings([...consoleFindingsFromErrors(ready.consoleErrors), ...findings])
+                    ? collapsedFindings([
+                        ...checks.findingsAtLevels(consoleFindingsFromErrors(ready.consoleErrors)),
+                        ...findings,
+                      ])
                     : findings,
                 elements,
               })
@@ -404,8 +409,8 @@ export const CaptureRunnerLayer = Layer.effect(
                   done++
 
                   if (groups.size > 1) {
-                    process.stderr.write(
-                      `[${done}/${groups.size}] ${sourceDescription(group[0]!.source)} ${sizeDescription(group[0]!.variant.size)} ${group[0]!.variant.mode}\n`,
+                    writeProgress(
+                      `[${done}/${groups.size}] ${sourceDescription(group[0]!.source)} ${sizeDescription(group[0]!.variant.size)} ${group[0]!.variant.mode}`,
                     )
                   }
                 }),

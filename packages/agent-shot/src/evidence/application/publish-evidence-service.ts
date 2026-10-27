@@ -4,8 +4,14 @@ import { ArtifactStore } from '../../artifact/artifact-store.ts'
 import type { EvidencePublisher, PublishEvidenceError, PublishedEvidence } from '../../plugin/evidence-publisher.ts'
 import { effectFromPluginHook } from '../../plugin/hook.ts'
 import { ShotConfig } from '../../plugin/shot-config.ts'
-import { NoEvidenceError, PublisherNotFoundError, PublishFailedError } from '../domain/evidence-error.ts'
-import { evidenceReportFromSession } from '../domain/evidence-report.ts'
+import {
+  type LabelNotFoundError,
+  type NoEvidenceError,
+  PublisherNotFoundError,
+  PublishFailedError,
+  type SheetNotFoundError,
+} from '../domain/evidence-error.ts'
+import { evidenceReportFromSession, type PublishRequest } from '../domain/evidence-report.ts'
 
 /** The plugins' publishers, run in the context their layers built. */
 export class EvidencePublishers extends Context.Service<
@@ -43,19 +49,20 @@ export const EvidencePublishersLayer = Layer.effect(
 )
 
 export interface PublishEvidenceCommand {
+  readonly request: PublishRequest
   readonly publisher: Option.Option<string>
   readonly pr: Option.Option<number>
 }
 
-/** C: the session's evidence on the PR. */
+/** C: the sheets the agent picked, on the PR. */
 export class PublishEvidenceService extends Context.Service<
   PublishEvidenceService,
   {
     publishEvidence(
       command: PublishEvidenceCommand,
     ): Effect.Effect<
-      { readonly reportFile: string; readonly published: PublishedEvidence },
-      NoEvidenceError | PublisherNotFoundError | PublishEvidenceError
+      { readonly sheets: number; readonly published: PublishedEvidence },
+      LabelNotFoundError | SheetNotFoundError | NoEvidenceError | PublisherNotFoundError | PublishEvidenceError
     >
   }
 >()('shot/PublishEvidenceService') {}
@@ -67,7 +74,11 @@ export const PublishEvidenceServiceLayer = Layer.effect(
     const { publishers } = yield* EvidencePublishers
 
     return PublishEvidenceService.of({
-      publishEvidence: Effect.fn('PublishEvidenceService.publishEvidence')(function* ({ publisher: name, pr }) {
+      publishEvidence: Effect.fn('PublishEvidenceService.publishEvidence')(function* ({
+        request,
+        publisher: name,
+        pr,
+      }) {
         const publisher = Option.match(name, {
           onNone: () => publishers[0],
           onSome: (wanted) => publishers.find((candidate) => candidate.publisher === wanted),
@@ -81,16 +92,11 @@ export const PublishEvidenceServiceLayer = Layer.effect(
         }
 
         const session = yield* store.readSession()
-
-        if (session.labels.every((label) => label.captures.length === 0 && label.flows.length === 0)) {
-          return yield* new NoEvidenceError({ session: session.name })
-        }
-
-        const report = evidenceReportFromSession(session)
-        const reportFile = yield* store.writeReport(report)
+        const report = yield* Effect.fromResult(evidenceReportFromSession({ session, request }))
+        yield* store.writeReport(report)
         const published = yield* publisher.publishEvidence({ report, pr: Option.getOrUndefined(pr) })
 
-        return { reportFile, published }
+        return { sheets: report.sheets.length, published }
       }),
     })
   }),

@@ -17,6 +17,19 @@ export interface Session {
 
 export const labelDisplayName = (label: string): string => (label === '' ? 'shot' : label)
 
+/** A label the agent named, by its name or its display name (`shot` for captures shot without `--label`). */
+export const labelFromName = ({
+  session,
+  name,
+}: {
+  readonly session: Session
+  readonly name: string
+}): string | undefined =>
+  (
+    session.labels.find((entry) => entry.label === name) ??
+    session.labels.find((entry) => labelDisplayName(entry.label) === name)
+  )?.label
+
 /** `.shots/<session>/[<label>/]`: a label picks the directory, not the key (A6). */
 export const labelDirFromSession = ({
   sessionDir,

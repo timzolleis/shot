@@ -2,7 +2,7 @@ import { Context, Effect, Layer, Option } from 'effect'
 import type { Locator } from 'playwright'
 
 import type { Capture } from '../capture/domain/capture.ts'
-import { collapsedFindings, type Finding } from '../capture/domain/finding.ts'
+import { collapsedFindings, type Finding, findingsAtLevels, levelOfCheck } from '../capture/domain/finding.ts'
 import type { ReadyPage } from '../infrastructure/page-lifecycle.ts'
 import type { CaptureCheck, CheckFinding } from '../plugin/capture-check.ts'
 import { effectFromPluginHook, type Hook } from '../plugin/hook.ts'
@@ -45,7 +45,7 @@ export const findingsFromCheck = <I, R>({
     Effect.map((findings) => findings.map((finding) => findingFromCheckFinding({ check: check.check, finding }))),
   )
 
-/** Core and plugin checks, each where it applies; repeats collapse. */
+/** Core and plugin checks, each where it applies and not off, at the project's levels; repeats collapse. */
 export class CaptureChecks extends Context.Service<
   CaptureChecks,
   {
@@ -54,6 +54,8 @@ export class CaptureChecks extends Context.Service<
       readonly capture: Capture
       readonly roots: ReadonlyArray<Locator>
     }): Effect.Effect<ReadonlyArray<Finding>>
+    /** Findings from outside a check (console) at the project's levels. */
+    findingsAtLevels(findings: ReadonlyArray<Finding>): ReadonlyArray<Finding>
   }
 >()('shot/CaptureChecks') {}
 
@@ -63,7 +65,10 @@ export const CaptureChecksLayer = Layer.effect(
   Effect.gen(function* () {
     const config = yield* ShotConfig
     const context = yield* Effect.context<never>()
-    const checks = [...coreCaptureChecks, ...config.plugins.flatMap((plugin) => plugin.checks ?? [])]
+
+    const checks = [...coreCaptureChecks, ...config.plugins.flatMap((plugin) => plugin.checks ?? [])].filter(
+      (check) => levelOfCheck({ check: check.check, checks: config.checks }) !== 'off',
+    )
 
     return CaptureChecks.of({
       runCaptureChecks: (input) =>
@@ -74,7 +79,12 @@ export const CaptureChecksLayer = Layer.effect(
             findingsFromCheck({ check, input }).pipe(Effect.provideContext(context)) as Effect.Effect<
               ReadonlyArray<Finding>
             >,
-        ).pipe(Effect.map((findings) => collapsedFindings(findings.flat()))),
+        ).pipe(
+          Effect.map((findings) =>
+            collapsedFindings(findingsAtLevels({ findings: findings.flat(), checks: config.checks })),
+          ),
+        ),
+      findingsAtLevels: (findings) => findingsAtLevels({ findings, checks: config.checks }),
     })
   }),
 )

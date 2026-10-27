@@ -2,18 +2,19 @@
 
 **Screenshots, checks and PR evidence for coding agents doing UI work.**
 
-Coding agents change UI blind: they edit CSS, call the job done, and you find the broken phone layout in review. `shot` is a CLI that lets the agent see what it changed. It takes before and after stills of your app, runs layout and accessibility checks, records click-through flows as video, and puts all of it in the pull request.
+Coding agents change UI blind: they edit CSS, call the job done, and you find the broken phone layout in review. `shot` is a CLI that lets the agent see what it changed. It takes before and after stills of your app, runs layout and accessibility checks, records click-through flows, and puts the screenshots it picks in the pull request.
 
 ```sh
-git stash -u && shot /settings --as admin --label before
-git stash pop && shot /settings --as admin --label after --size phone --size desktop --check
-shot publish
+git stash -u && shot /settings --as admin --size phone --size desktop --check --label before
+git stash pop && shot /settings --as admin --size phone --size desktop --check --label after
+shot publish before after --note "Profile=Save button no longer wraps on phones"
 ```
 
 ```text
 .shots/a1b2/after/route-settings--profile-admin-iphone-15-light-4c1e9a.png
 .shots/a1b2/after/route-settings--profile-admin-1440x900-light-9f03d2.png
-warn  target   /settings as admin@example.org › Profile: touch target 67×40, under 44×44 (#save)
+error target Profile (iPhone 15): touch target 80×20, under 24×24 (#save)
+1 warning (--warnings lists them); 3 findings also in before
 ```
 
 ## Why use it
@@ -23,7 +24,7 @@ warn  target   /settings as admin@example.org › Profile: touch target 67×40, 
 - **Every size in one run.** `--size phone --size desktop` shoots each size. Each size uses its own section list, so a sidebar that's hidden on phones isn't shot there.
 - **Bugs you'd catch in review, caught earlier.** `--check` finds overflowing or clipped text, touch targets that are too small, missing focus rings, edges that are 1–3px out of line, and axe violations.
 - **You pick between variants.** `shot review` puts the labels the agent names side by side in a local page. You vote, draw on the stills like in Figma, and send it; the agent gets your picks, numbered notes with the element under each, and the drawings.
-- **Reviewers see what changed.** `shot publish` writes the stills, flow videos and findings into the PR description: one sheet per capture, with a row per label and a column per size and mode, so before and after in light and dark is one image.
+- **Reviewers see what changed, and nothing else.** `shot publish before after` puts the sheets the agent picks into the PR description, each with the agent's note: one image per capture, with a row per label and a column per size and mode, so before and after in light and dark is one image. Scratch shots, findings and flows stay local.
 - **Logged-in pages work.** You give it a login hook once, and it keeps a session for each user. Requests that would change data (POST/PUT/PATCH/DELETE) are blocked, so a scene can't change your dev data.
 - **It works with any framework.** It only needs a URL. Shot drives Playwright Chromium against your running dev server.
 
@@ -70,6 +71,14 @@ export default defineConfig({
 ```
 
 `--as admin` logs in once and reuses the session after that. Optional hooks: `isLoginPage`, `waitUntilReady`, `applyTheme`, `writes: 'allow'`. You can also set `determinism` to fix the clock and random seed.
+
+`checks` sets how loud each check is: `'off'` for all of them, or per check (core or a plugin's), typed from your `plugins`:
+
+```ts
+checks: { align: 'off', target: 'error', a11y: 'warn' }   // 'off' | 'warn' | 'error'
+```
+
+`'off'` skips the check; `'warn'` and `'error'` set the severity of all its findings. A page that fails to render always fails.
 
 ## Examples
 
@@ -153,8 +162,8 @@ Each image is the still with your drawings burned in. Only the labels the agent 
 
 ## Output
 
-- **stdout:** one path per file, and one line per finding (`error`/`warn`, check, target, message). Add `--json` for structured output.
-- **Exit codes:** 0 when everything is ok. 1 on a render failure (500, redirect, timeout, failed step) or an error finding. 2 on a usage error.
+- **stdout:** one path per file, one line per error finding (`error`, check, part, message), then a note line: how many warnings (`--warnings` lists them) and how many findings `before` has too. With `--check` on both states, the after run shows only what the change added. Add `--json` for every finding. Progress goes to stderr only on a terminal, so agents read only what they act on.
+- **Exit codes:** 0 when everything is ok. 1 on a render failure (500, redirect, timeout, failed step) or an error finding `before` does not have. 2 on a usage error.
 - **Files:** `.shots/<session>/[<label>/]<source>--<slug>-<hash>.png`. A rerun overwrites the file. Review rounds go to `.shots/<session>/review/`. `shot clean` removes the session.
 
 ## Plugins

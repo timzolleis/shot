@@ -24,8 +24,20 @@ export class NoPushAccessError extends Data.TaggedError('NoPushAccessError')<{
 
 export class NoPullRequestError extends Data.TaggedError('NoPullRequestError')<{ readonly branch: string }> {}
 
-/** Nothing shot or recorded in this session. */
-export class NoEvidenceError extends Data.TaggedError('NoEvidenceError')<{ readonly session: string }> {}
+/** The named labels have no still to publish. */
+export class NoEvidenceError extends Data.TaggedError('NoEvidenceError')<{ readonly labels: ReadonlyArray<string> }> {}
+
+/** A label the agent named is not in the session (C11, F23). */
+export class LabelNotFoundError extends Data.TaggedError('LabelNotFoundError')<{
+  readonly label: string
+  readonly labels: ReadonlyArray<string>
+}> {}
+
+/** `--sheet` or `--note` matches no sheet the named labels have (C11, F25). */
+export class SheetNotFoundError extends Data.TaggedError('SheetNotFoundError')<{
+  readonly sheet: string
+  readonly titles: ReadonlyArray<string>
+}> {}
 
 export class PublisherNotFoundError extends Data.TaggedError('PublisherNotFoundError')<{
   readonly publisher: string

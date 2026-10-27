@@ -20,6 +20,8 @@ const report: EvidenceReport = {
     {
       key: 'route-app-persons--admin-9c41d0',
       title: '/app/persons as admin@example.org › page',
+      heading: '/app/persons › page',
+      note: 'Invite moved into the header',
       file: '.shots/s/report/route-app-persons--admin-9c41d0.png',
       variants: [{ size: defaultSize, mode: 'light' }],
       rows: [
@@ -34,9 +36,6 @@ const report: EvidenceReport = {
       ],
     },
   ],
-  flows: [],
-  findings: [],
-  summary: { captures: 2, flows: 0, errors: 0, warnings: 0 },
 }
 
 const ok = (stdout: string): ProcessOutput => ({ exitCode: 0, stdout, stderr: '' })
@@ -75,6 +74,7 @@ const store = Layer.succeed(
     makeFlowDir: unused,
     writeFlowResult: unused,
     readSession: unused,
+    readLabel: unused,
     writeReport: unused,
     readHostDefaults: unused,
     writeHostDefaults: unused,

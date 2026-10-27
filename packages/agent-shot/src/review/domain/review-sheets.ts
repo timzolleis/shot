@@ -1,19 +1,22 @@
 import { Match, Option, Predicate, Result } from 'effect'
 
-import { labelDisplayName, type Session } from '../../artifact/session.ts'
+import { labelDisplayName, labelFromName, type Session } from '../../artifact/session.ts'
 import type { Capture, Source } from '../../capture/domain/capture.ts'
-import { partDescription, sheetKey, sourceDescription } from '../../capture/domain/capture-key.ts'
+import { sheetKey } from '../../capture/domain/capture-key.ts'
 import { type Size, sizeDescription } from '../../capture/domain/size.ts'
+import { LabelNotFoundError, SheetNotFoundError } from '../../evidence/domain/evidence-error.ts'
 import {
   type EvidenceCell,
   type EvidenceSheet,
-  evidenceReportFromSession,
+  evidenceSheetsFromSession,
   MissingCell,
   type SheetRow,
+  sheetHeading,
+  sheetTitle,
   uniqueVariants,
   variantDescription,
 } from '../../evidence/domain/evidence-report.ts'
-import { LabelNotFoundError, NothingToReviewError, SheetNotFoundError, SizeNotShotError } from './review-error.ts'
+import { NothingToReviewError, SizeNotShotError } from './review-error.ts'
 import type { ReviewDraft, ReviewLabel, ReviewSheet } from './review.ts'
 
 /** What the agent puts up for review; shot adds nothing (F23). */
@@ -37,13 +40,6 @@ export interface ReviewSheets {
 
 export type ReviewSheetsError = LabelNotFoundError | SheetNotFoundError | SizeNotShotError | NothingToReviewError
 
-/** `shot` names the captures shot without `--label` (A6). */
-const sessionLabelFromName = ({ session, name }: { readonly session: Session; readonly name: string }) =>
-  Option.fromNullishOr(
-    session.labels.find((entry) => entry.label === name) ??
-      session.labels.find((entry) => labelDisplayName(entry.label) === name),
-  ).pipe(Option.map((entry) => entry.label))
-
 const isShot = (cell: EvidenceCell) => Predicate.isTagged(cell, 'ShotCell')
 
 const withoutQuery = (source: Source): Source =>
@@ -54,9 +50,6 @@ const withoutQuery = (source: Source): Source =>
 
 /** A capture with the query left out of its source: `/team?variant=quiet` and `/team?variant=dense` line up. */
 const alignedCapture = (capture: Capture): Capture => ({ ...capture, source: withoutQuery(capture.source) })
-
-const alignedTitle = (capture: Capture) =>
-  `${sourceDescription(capture.source)} › ${Option.getOrElse(capture.name, () => partDescription(capture.part))}`
 
 /**
  * The report's sheets for these labels, with sheets that differ only in their URL's query merged into one, so variants
@@ -75,7 +68,7 @@ const alignedSheets = ({
     ),
   )
 
-  const sheets = evidenceReportFromSession(session).sheets.map((sheet) => ({
+  const sheets = evidenceSheetsFromSession(session).map((sheet) => ({
     ...sheet,
     rows: sheet.rows.filter((row) => labels.includes(row.label)),
   }))
@@ -108,7 +101,7 @@ const alignedSheets = ({
       })),
     )
 
-    return { key, title: alignedTitle(capture), file: members[0]!.file, variants, rows }
+    return { key, title: sheetTitle(capture), heading: sheetHeading(capture), file: members[0]!.file, variants, rows }
   })
 }
 
@@ -129,10 +122,10 @@ export const reviewSheetsFromSession = ({
   const resolved = new Map<string, string>()
 
   for (const name of named) {
-    const label = sessionLabelFromName({ session, name })
+    const label = labelFromName({ session, name })
 
-    if (Option.isNone(label)) return Result.fail(new LabelNotFoundError({ label: name, labels: known }))
-    resolved.set(name, label.value)
+    if (label === undefined) return Result.fail(new LabelNotFoundError({ label: name, labels: known }))
+    resolved.set(name, label)
   }
 
   const labelOf = (name: string) => resolved.get(name) ?? name

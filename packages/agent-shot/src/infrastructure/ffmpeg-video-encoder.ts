@@ -6,6 +6,7 @@ import { createRequire } from 'node:module'
 import { VideoEncoder } from '../evidence/application/video-encoder.ts'
 import { VideoTooLargeError } from '../evidence/domain/evidence-error.ts'
 import { type VideoEncoding, videoEncodingForBudget } from '../evidence/domain/video-budget.ts'
+import { writeProgress } from './progress.ts'
 
 /** `ffmpeg-static` exports the binary's path, or null on a platform it has no binary for. */
 const decodeBundledFfmpeg = Schema.decodeUnknownSync(Schema.String)
@@ -88,8 +89,8 @@ export const FfmpegVideoEncoderLayer = Layer.effect(
         )
 
         if (encoding.bitrate === undefined) return { file: output, bytes, width }
-        process.stderr.write(
-          `video: ${(bytes / 1024 / 1024).toFixed(1)} MB at ${width} wide; re-encoding at ${encoding.width} wide\n`,
+        writeProgress(
+          `video: ${(bytes / 1024 / 1024).toFixed(1)} MB at ${width} wide; re-encoding at ${encoding.width} wide`,
         )
         const reencoded = yield* encode({ recording, output, encoding })
 

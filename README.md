@@ -30,14 +30,12 @@ error target Profile (iPhone 15): touch target 80×20, under 24×24 (#save)
 
 ## Install
 
-Shot is in beta. Install the `beta` tag:
-
 ```sh
-npm i -D agent-shot@beta
+npm i -D agent-shot
 npx playwright install chromium
 ```
 
-For the axe accessibility check, also add `npm i -D @agent-shot/axe@beta`.
+For the axe accessibility check, also add `npm i -D @agent-shot/axe`.
 
 You need Node ≥ 24. `shot publish` needs [`gh`](https://cli.github.com) ≥ 2.99. Videos are encoded with a bundled ffmpeg.
 

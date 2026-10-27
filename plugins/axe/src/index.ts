@@ -15,7 +15,7 @@ declare global {
   }
 }
 
-export const a11yCheck: CaptureCheck = {
+export const a11yCheck: CaptureCheck<never, 'a11y'> = {
   check: 'a11y',
   appliesTo: isStill,
   runCheck: async ({ page: { page }, roots }) => {

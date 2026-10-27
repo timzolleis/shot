@@ -71,6 +71,14 @@ export default defineConfig({
 
 `--as admin` logs in once and reuses the session after that. Optional hooks: `isLoginPage`, `waitUntilReady`, `applyTheme`, `writes: 'allow'`. You can also set `determinism` to fix the clock and random seed.
 
+`checks` sets how loud each check is: `'off'` for all of them, or per check (core or a plugin's), typed from your `plugins`:
+
+```ts
+checks: { align: 'off', target: 'error', a11y: 'warn' }   // 'off' | 'warn' | 'error'
+```
+
+`'off'` skips the check; `'warn'` and `'error'` set the severity of all its findings. A page that fails to render always fails.
+
 ## Examples
 
 ```sh

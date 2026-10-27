@@ -339,7 +339,7 @@ export const CaptureRunnerLayer = Layer.effect(
           if (Result.isFailure(sceneRun)) {
             return captures.map((capture) =>
               failedResult(capture, [
-                ...consoleFindingsFromErrors(ready.consoleErrors),
+                ...checks.findingsAtLevels(consoleFindingsFromErrors(ready.consoleErrors)),
                 renderFindingFromReason(reasonFromCaptureFailure(sceneRun.failure)),
               ]),
             )
@@ -376,7 +376,10 @@ export const CaptureRunnerLayer = Layer.effect(
                 // Console errors belong to the page load: reported once, on its first capture.
                 findings:
                   index === 0
-                    ? collapsedFindings([...consoleFindingsFromErrors(ready.consoleErrors), ...findings])
+                    ? collapsedFindings([
+                        ...checks.findingsAtLevels(consoleFindingsFromErrors(ready.consoleErrors)),
+                        ...findings,
+                      ])
                     : findings,
                 elements,
               })

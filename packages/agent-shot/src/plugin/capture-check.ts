@@ -15,10 +15,10 @@ export interface CheckFinding {
 
 /**
  * A check on each capture's part, before overlays draw. `roots` are the part's elements. `runCheck` returns findings,
- * a Promise of them, or an Effect; a throw or a rejection becomes an error finding.
+ * a Promise of them, or an Effect; a throw or a rejection becomes an error finding. `Name` types `checks` in the config.
  */
-export interface CaptureCheck<R = never> {
-  readonly check: string
+export interface CaptureCheck<R = never, Name extends string = string> {
+  readonly check: Name
   readonly appliesTo: (capture: Capture) => boolean
   readonly runCheck: (input: {
     readonly page: ReadyPage

@@ -5,9 +5,15 @@ import { pathToFileURL } from 'node:url'
 import type { BrowserContext, Page } from 'playwright'
 
 import type { Mode } from '../capture/domain/capture.ts'
+import {
+  type ChecksSetting,
+  checksSettingFromConfig,
+  type CoreCheckName,
+  coreCheckNames,
+} from '../capture/domain/finding.ts'
 import { videoLimitBytes } from '../evidence/domain/video-budget.ts'
 import { type Hook, messageFromCause } from './hook.ts'
-import type { ShotPlugin } from './shot-plugin.ts'
+import type { AnyShotPlugin, CheckNameOfPlugin } from './shot-plugin.ts'
 
 /** Where the project's app runs and how a user logs in (D13). Hooks return a Promise, an Effect or a value. */
 export interface AppConfig {
@@ -45,15 +51,23 @@ export interface Determinism {
   readonly routes?: boolean
 }
 
-export interface ShotConfigInput {
+export interface ShotConfigInput<Plugins extends ReadonlyArray<AnyShotPlugin> = ReadonlyArray<AnyShotPlugin>> {
   readonly app?: AppConfig
-  readonly plugins?: ReadonlyArray<ShotPlugin<any>>
+  readonly plugins?: Plugins
+  /**
+   * `'off'`: no check reports anything. Else a level per check, core (`console`, `overflow`, `target`, `focus`,
+   * `align`) or a plugin's (`a11y`): `'off'`, or `'warn'`/`'error'` for all its findings. Render failures always count.
+   */
+  readonly checks?: ChecksSetting<CoreCheckName | CheckNameOfPlugin<Plugins[number]>>
   readonly determinism?: Determinism
   /** The repository owner's GitHub plan: picks the video limit, 10 MB or 100 MB (B9). Default free. */
   readonly githubPlan?: 'free' | 'paid'
 }
 
-export const defineConfig = (config: ShotConfigInput): ShotConfigInput => config
+/** Types the config; `checks` takes the core checks' names and those of the plugins in `plugins`. */
+export const defineConfig = <const Plugins extends ReadonlyArray<AnyShotPlugin> = readonly []>(
+  config: ShotConfigInput<Plugins>,
+): ShotConfigInput => config
 
 /** The loaded `shot.config.ts`, or the defaults when there is none. */
 export class ShotConfig extends Context.Service<
@@ -63,7 +77,8 @@ export class ShotConfig extends Context.Service<
     readonly projectRoot: string
     readonly configFile: Option.Option<string>
     readonly app: Option.Option<AppConfig>
-    readonly plugins: ReadonlyArray<ShotPlugin<any>>
+    readonly plugins: ReadonlyArray<AnyShotPlugin>
+    readonly checks: ChecksSetting
     readonly determinism: Determinism
     readonly videoLimitBytes: number
   }
@@ -116,11 +131,25 @@ export const loadShotConfig = (cwd: string) =>
         ),
     })
 
+    const plugins = loaded.plugins ?? []
+
+    const checks = yield* Effect.fromResult(
+      checksSettingFromConfig({
+        checks: loaded.checks,
+        known: [...coreCheckNames, ...plugins.flatMap((plugin) => (plugin.checks ?? []).map((check) => check.check))],
+      }),
+    ).pipe(
+      Effect.mapError(
+        (reason) => new ShotConfigInvalidError({ file: Option.getOrElse(configFile, () => 'shot.config.ts'), reason }),
+      ),
+    )
+
     return ShotConfig.of({
       projectRoot: Option.match(configFile, { onNone: () => cwd, onSome: (file) => path.dirname(file) }),
       configFile,
       app: Option.fromNullishOr(loaded.app),
-      plugins: loaded.plugins ?? [],
+      plugins,
+      checks,
       determinism: loaded.determinism ?? {},
       videoLimitBytes: videoLimitBytes(loaded.githubPlan ?? 'free'),
     })

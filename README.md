@@ -31,9 +31,11 @@ error target Profile (iPhone 15): touch target 80×20, under 24×24 (#save)
 ## Install
 
 ```sh
-npm i -D agent-shot
+npm i -D agent-shot effect @effect/platform-node
 npx playwright install chromium
 ```
+
+`effect` and `@effect/platform-node` (4.x) are peer dependencies: shot uses your app's Effect.
 
 For the axe accessibility check, also add `npm i -D @agent-shot/axe`.
 

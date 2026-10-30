@@ -32,15 +32,19 @@
     "access": "public"
   },
   "dependencies": {
-    "@effect/platform-node": "4.0.5",
-    "effect": "4.0.5",
     "esbuild": "^0.28.2",
     "ffmpeg-static": "^5.3.0",
     "playwright": "1.64.1",
     "pngjs": "^7.0.0"
   },
   "devDependencies": {
-    "@agent-shot/fixture-app": "workspace:*"
+    "@agent-shot/fixture-app": "workspace:*",
+    "@effect/platform-node": "4.0.5",
+    "effect": "4.0.5"
+  },
+  "peerDependencies": {
+    "@effect/platform-node": "^4.0.5",
+    "effect": "^4.0.5"
   },
   "engines": {
     "node": ">=24"

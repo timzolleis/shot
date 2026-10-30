@@ -196,12 +196,6 @@ importers:
 
   packages/agent-shot:
     dependencies:
-      '@effect/platform-node':
-        specifier: 4.0.5
-        version: 4.0.5(effect@4.0.5)(redis@6.3.0)
-      effect:
-        specifier: 4.0.5
-        version: 4.0.5
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -218,6 +212,12 @@ importers:
       '@agent-shot/fixture-app':
         specifier: workspace:*
         version: link:../../test/fixture-app
+      '@effect/platform-node':
+        specifier: 4.0.5
+        version: 4.0.5(effect@4.0.5)(redis@6.3.0)
+      effect:
+        specifier: 4.0.5
+        version: 4.0.5
 
   plugins/axe:
     dependencies:

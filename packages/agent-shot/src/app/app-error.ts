@@ -5,6 +5,11 @@ export class AppHookMissingError extends Data.TaggedError('AppHookMissingError')
 
 export class AppNotRunningError extends Data.TaggedError('AppNotRunningError')<{ readonly url: string }> {}
 
+export class AppStartTimedOutError extends Data.TaggedError('AppStartTimedOutError')<{
+  readonly url: string
+  readonly timeoutMs: number
+}> {}
+
 /** A hook rejected, as a Promise or an Effect (D13). */
 export class AppHookFailedError extends Data.TaggedError('AppHookFailedError')<{
   readonly hook: string

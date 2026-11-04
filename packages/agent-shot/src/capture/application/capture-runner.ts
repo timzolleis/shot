@@ -5,6 +5,7 @@ import type {
   AppHookFailedError,
   AppHookMissingError,
   AppNotRunningError,
+  AppStartTimedOutError,
   SessionLockTimeoutError,
 } from '../../app/app-error.ts'
 import { ArtifactStore } from '../../artifact/artifact-store.ts'
@@ -36,7 +37,12 @@ import { type OpenSourceError, SourceProviders } from './source-providers.ts'
 import { writeProgress } from '../../infrastructure/progress.ts'
 
 /** Errors that end the whole run, not one capture: the app or its hooks. */
-export type RunPlanError = AppHookMissingError | AppHookFailedError | AppNotRunningError | SessionLockTimeoutError
+export type RunPlanError =
+  | AppHookMissingError
+  | AppHookFailedError
+  | AppNotRunningError
+  | AppStartTimedOutError
+  | SessionLockTimeoutError
 
 export class CaptureRunner extends Context.Service<
   CaptureRunner,
@@ -69,6 +75,7 @@ export const isRunPlanError = (error: OpenSourceError): error is RunPlanError =>
   Predicate.isTagged(error, 'AppHookMissingError') ||
   Predicate.isTagged(error, 'AppHookFailedError') ||
   Predicate.isTagged(error, 'AppNotRunningError') ||
+  Predicate.isTagged(error, 'AppStartTimedOutError') ||
   Predicate.isTagged(error, 'SessionLockTimeoutError')
 
 export const CaptureRunnerLayer = Layer.effect(

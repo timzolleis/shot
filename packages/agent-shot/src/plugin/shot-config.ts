@@ -25,6 +25,8 @@ export interface AppConfig {
   readonly url: () => Hook<string>
   /** A path; GET must answer 2xx. Without it, any answer means the app runs. */
   readonly health?: string
+  readonly start?: () => Hook<void>
+  readonly startTimeoutMs?: number
   /** Aliases for `--as` (D15). */
   readonly users?: Readonly<Record<string, string>>
   readonly logIn: (input: {

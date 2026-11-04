@@ -70,7 +70,7 @@ export default defineConfig({
 })
 ```
 
-`--as admin` logs in once and reuses the session after that. Optional hooks: `isLoginPage`, `waitUntilReady`, `applyTheme`, `writes: 'allow'`. You can also set `determinism` to fix the clock and random seed.
+`--as admin` logs in once and reuses the session after that. Optional hooks: `isLoginPage`, `waitUntilReady`, `applyTheme`. Same-origin writes (POST, PUT, PATCH, DELETE) are blocked and reported; `writes: 'allow'` lets them all through, `writes: { allow: ['POST /api/sync'] }` only the listed ones (method and pathname; a trailing `*` matches a prefix). You can also set `determinism` to fix the clock and random seed.
 
 `checks` sets how loud each check is: `'off'` for all of them, or per check (core or a plugin's), typed from your `plugins`:
 

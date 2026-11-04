@@ -4,7 +4,7 @@ import { type BrowserContext, type Page, request } from 'playwright'
 import type { Mode } from '../capture/domain/capture.ts'
 import type { ReadyWait } from '../capture/domain/capture-error.ts'
 import { effectFromHook } from '../plugin/hook.ts'
-import { type AppConfig, ShotConfig } from '../plugin/shot-config.ts'
+import { type AllowedWrite, type AppConfig, ShotConfig } from '../plugin/shot-config.ts'
 import { AppHookFailedError, AppHookMissingError, AppNotRunningError } from './app-error.ts'
 
 /** The project's app hooks, normalized once: the core only sees Effects (D13). */
@@ -33,7 +33,8 @@ export class AppHooks extends Context.Service<
       readonly url: string
       readonly mode: Mode
     }): Effect.Effect<void, AppHookFailedError>
-    readonly writes: 'block' | 'allow'
+    /** `'block'` is `{ allow: [] }`. */
+    readonly writes: 'allow' | { readonly allow: ReadonlyArray<AllowedWrite> }
   }
 >()('shot/AppHooks') {}
 
@@ -84,6 +85,7 @@ export const AppHooksLayer = Layer.effect(
 
     // One URL and health check per run, not one per page.
     const appUrl = yield* Effect.cached(resolveAppUrl)
+    const writes = Option.match(app, { onNone: () => 'block' as const, onSome: (config) => config.writes ?? 'block' })
 
     return AppHooks.of({
       appUrl: () => appUrl,
@@ -122,7 +124,7 @@ export const AppHooksLayer = Layer.effect(
               effectFromHook(() => applyTheme({ context, url, mode }), failed('applyTheme', Option.none())),
           },
         ),
-      writes: Option.match(app, { onNone: () => 'block' as const, onSome: (config) => config.writes ?? 'block' }),
+      writes: writes === 'block' ? { allow: [] } : writes,
     })
   }),
 )

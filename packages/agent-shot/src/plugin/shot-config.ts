@@ -15,6 +15,11 @@ import { videoLimitBytes } from '../evidence/domain/video-budget.ts'
 import { type Hook, messageFromCause } from './hook.ts'
 import type { AnyShotPlugin, CheckNameOfPlugin } from './shot-plugin.ts'
 
+export const writeMethods = ['POST', 'PUT', 'PATCH', 'DELETE'] as const
+
+/** A method and an exact pathname, or a pathname prefix ending in `*`: `'POST /api/sync'`. */
+export type AllowedWrite = `${(typeof writeMethods)[number]} /${string}`
+
 /** Where the project's app runs and how a user logs in (D13). Hooks return a Promise, an Effect or a value. */
 export interface AppConfig {
   readonly url: () => Hook<string>
@@ -38,8 +43,8 @@ export interface AppConfig {
     readonly url: string
     readonly mode: Mode
   }) => Hook<void>
-  /** Default 'block' (A4). */
-  readonly writes?: 'block' | 'allow'
+  /** Default 'block' (A4). `{ allow: [...] }` lets the listed writes through and blocks the rest. */
+  readonly writes?: 'block' | 'allow' | { readonly allow: ReadonlyArray<AllowedWrite> }
 }
 
 export interface Determinism {

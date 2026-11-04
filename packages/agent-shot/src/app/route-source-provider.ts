@@ -122,7 +122,10 @@ export const openRouteSource = ({
       })
       const log = createErrorLog()
 
-      if (deps.hooks.writes === 'block') yield* blockWrites({ context, origin: target.origin, log })
+      if (deps.hooks.writes !== 'allow') {
+        yield* blockWrites({ context, origin: target.origin, allowed: deps.hooks.writes.allow, log })
+      }
+
       const page = yield* Effect.promise(() => context.newPage())
       collectPageErrors(page, log)
       const networkQuiet = trackNetwork(page, target.origin)

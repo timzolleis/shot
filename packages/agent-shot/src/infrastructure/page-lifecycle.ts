@@ -4,7 +4,7 @@ import { type BrowserContext, type BrowserContextOptions, devices, type Page, ty
 import type { Source, Step, Variant } from '../capture/domain/capture.ts'
 import { StepFailedError } from '../capture/domain/capture-error.ts'
 import type { KnownDevice } from '../capture/domain/size.ts'
-import type { Determinism } from '../plugin/shot-config.ts'
+import { type AllowedWrite, type Determinism, writeMethods } from '../plugin/shot-config.ts'
 
 /**
  * One page and its lifecycle, for any source:
@@ -141,16 +141,16 @@ export const collectPageErrors = (page: Page, log: ReturnType<typeof createError
   page.on('pageerror', (error) => log.add(error.message))
 }
 
-const writeMethods = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
-
-/** Aborts same-origin writes; each one is logged (A4). */
+/** Aborts same-origin writes except the allowed ones; each aborted one is logged (A4). */
 export const blockWrites = ({
   context,
   origin,
+  allowed,
   log,
 }: {
   readonly context: BrowserContext
   readonly origin: string
+  readonly allowed: ReadonlyArray<AllowedWrite>
   readonly log: ReturnType<typeof createErrorLog>
 }) =>
   Effect.promise(() =>
@@ -159,8 +159,14 @@ export const blockWrites = ({
       async (route) => {
         const request = route.request()
 
-        if (!writeMethods.has(request.method())) return route.fallback()
-        log.add(`blocked ${request.method()} ${new URL(request.url()).pathname}`)
+        if (!writeMethods.some((method) => method === request.method())) return route.fallback()
+        const write = `${request.method()} ${new URL(request.url()).pathname}`
+
+        if (allowed.some((entry) => (entry.endsWith('*') ? write.startsWith(entry.slice(0, -1)) : write === entry))) {
+          return route.fallback()
+        }
+
+        log.add(`blocked ${write}`)
 
         return route.abort('blockedbyclient')
       },

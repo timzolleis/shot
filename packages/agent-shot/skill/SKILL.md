@@ -9,14 +9,15 @@ description: Screenshot UI work with the shot CLI (agent-shot): stills of app pa
 
 ## Prove a UI change
 
-1. Find each screen your change touches: an app path with real ids, and the part that changed. `shot outline <path> --as <user>` lists section titles. Shoot that part (`--section`, `--select`), not the whole page. Complete when you have a path and a part per changed screen.
-2. Shoot the old state: `git stash -u && shot <path> --as <user> --label before [flags]`.
-3. Shoot the new state with the same flags: `git stash pop && shot <path> --as <user> --label after [flags]`. Same flags give the same file name under `before/` and `after/`, and one sheet on the PR. Complete when every `after` path has a `before` twin.
-4. Read each pair. Complete when you can name what changed and what did not, at each size you shot.
-5. Run `--check` on both states. The after run prints only findings `before` does not have: those are yours. Fix its `error` findings. Complete when the after run exits 0.
-6. Publish: `shot publish before after --note "<part of a sheet title>=<what changed, one sentence>"`. Complete when it printed the PR's URL.
+1. Run the repo's deterministic checks (typecheck, lint, tests) and commit. A red check means the code under the screenshot still changes, so shoot after. Complete when they pass and `git status` is clean.
+2. Find each screen your change touches: an app path with real ids, and the part that changed. `shot outline <path> --as <user>` lists section titles. Shoot that part (`--section`, `--select`), not the whole page. Complete when you have a path and a part per changed screen.
+3. Shoot the old state: `git switch --detach $(git merge-base HEAD origin/main) && shot <path> --as <user> --label before [flags]`.
+4. Shoot the new state with the same flags: `git switch - && shot <path> --as <user> --label after [flags]`. Same flags give the same file name under `before/` and `after/`, and one sheet on the PR. Complete when every `after` path has a `before` twin.
+5. Read each pair. Complete when you can name what changed and what did not, at each size you shot.
+6. Run `--check` on both states. The after run prints only findings `before` does not have: those are yours. Fix its `error` findings, then repeat step 1. Complete when the after run exits 0.
+7. Publish: `shot publish before after --note "<part of a sheet title>=<what changed, one sentence>"`. Complete when it printed the PR's URL.
 
-Shot does not run git. A dev server with hot reload serves the stashed state; one that builds once needs a restart.
+Shot does not run git. A dev server with hot reload serves the checked-out state; one that builds once needs a restart.
 
 Shots without `--label` are scratch: look around with them freely, they never reach the PR.
 
@@ -63,10 +64,12 @@ shot ./compare.html?variant=c                                        # a local H
 ```
 
 - Each size shoots the sections its own layout shows; a `--section` that a size hides fails at that size.
-- App writes (POST, PUT, PATCH, DELETE) are blocked and reported, so a scene cannot change dev data.
+- App writes (POST, PUT, PATCH, DELETE) are blocked and reported, so a scene cannot change dev data. A page that reads through a write (live sync) needs it listed in `shot.config.ts`: `app: { writes: { allow: ['POST /api/sync'] } }`.
 - A rerun with the same flags overwrites its file. `shot clean` deletes the session.
 
 ## Flows
+
+Prefer a path shot with scene flags (`--click`, `--fill`, `--key`). Write a flow only for a sequence no scene reaches: several pages, or waiting on the app.
 
 ```ts
 // shots/invite-parent.flow.ts

@@ -6,8 +6,10 @@ import { rmSync } from 'node:fs'
 import type { Server } from 'node:http'
 import path from 'node:path'
 import { promisify } from 'node:util'
+import { chromium } from 'playwright'
 
 import { Fill, Key, UrlSource } from '../src/capture/domain/capture.ts'
+import { blockWrites, createErrorLog } from '../src/infrastructure/page-lifecycle.ts'
 import {
   defaultShootFlags,
   RecordFlowService,
@@ -190,7 +192,7 @@ describe('CaptureRunner against the fixture app', () => {
 
     const outputs = await Promise.all([run(), run()])
     expect(await logins()).toBe(before + 1)
-    expect(outputs.map((output) => output.stdout.trim())).toEqual([
+    expect(outputs.map((output) => output.stdout.trim().split('\n')[0])).toEqual([
       expect.stringMatching(/route-app-persons--viewport-admin-1280x900-light-[0-9a-f]{6}\.png$/),
       expect.stringMatching(/route-app-persons--viewport-admin-1280x900-light-[0-9a-f]{6}\.png$/),
     ])
@@ -226,5 +228,44 @@ describe('RecordFlowService against the fixture app', () => {
     expect(result._tag).toBe('StoppedFlow')
     expect(result.stills).toHaveLength(2)
     expect(Predicate.isTagged(result, 'StoppedFlow') && result.failedStep).toBe('submit')
+  })
+})
+
+describe('blockWrites against the fixture app', () => {
+  const sendWrite = async (method: string, pathname: string) => {
+    const browser = await chromium.launch()
+
+    try {
+      const context = await browser.newContext()
+      const log = createErrorLog()
+      await Effect.runPromise(blockWrites({ context, origin: appUrl, allowed: ['POST /api/sync'], log }))
+      const page = await context.newPage()
+      await page.goto(`${appUrl}/health`)
+
+      const sent = await page.evaluate(
+        ({ method, pathname }) =>
+          fetch(pathname, { method }).then(
+            () => true,
+            () => false,
+          ),
+        { method, pathname },
+      )
+
+      return { sent, errors: log.errors }
+    } finally {
+      await browser.close()
+    }
+  }
+
+  it('a listed write → sent, nothing reported (4)', async () => {
+    expect(await sendWrite('POST', '/api/sync')).toEqual({ sent: true, errors: [] })
+  })
+
+  it('an unlisted write → aborted, "blocked POST /api/settings" (4)', async () => {
+    expect(await sendWrite('POST', '/api/settings')).toEqual({ sent: false, errors: ['blocked POST /api/settings'] })
+  })
+
+  it('a listed path with another method → aborted, "blocked PUT /api/sync" (4)', async () => {
+    expect(await sendWrite('PUT', '/api/sync')).toEqual({ sent: false, errors: ['blocked PUT /api/sync'] })
   })
 })

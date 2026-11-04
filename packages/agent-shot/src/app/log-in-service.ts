@@ -5,6 +5,7 @@ import type {
   AppHookFailedError,
   AppHookMissingError,
   AppNotRunningError,
+  AppStartTimedOutError,
   SessionLockTimeoutError,
 } from './app-error.ts'
 import { AppHooks } from './app-hooks.ts'
@@ -24,14 +25,14 @@ export class LogInService extends Context.Service<
       command: LogInCommand,
     ): Effect.Effect<
       { readonly url: string; readonly host: string; readonly user: string },
-      AppHookMissingError | AppHookFailedError | AppNotRunningError | SessionLockTimeoutError
+      AppHookMissingError | AppHookFailedError | AppNotRunningError | AppStartTimedOutError | SessionLockTimeoutError
     >
     /** Removes cached sessions on the app's host, for one user or all. */
     logOut(command: {
       readonly as: Option.Option<string>
     }): Effect.Effect<
       { readonly host: string; readonly removed: number },
-      AppHookMissingError | AppHookFailedError | AppNotRunningError
+      AppHookMissingError | AppHookFailedError | AppNotRunningError | AppStartTimedOutError
     >
   }
 >()('shot/LogInService') {}

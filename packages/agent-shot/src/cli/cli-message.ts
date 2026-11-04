@@ -3,6 +3,7 @@ import {
   type AppHookFailedError,
   type AppHookMissingError,
   type AppNotRunningError,
+  type AppStartTimedOutError,
   type ConflictingOutputsError,
   type FlowInvalidError,
   type FlowNotFoundError,
@@ -52,6 +53,7 @@ export type ShotError =
   | LoupeTooLargeError
   | AppHookMissingError
   | AppNotRunningError
+  | AppStartTimedOutError
   | AppHookFailedError
   | SessionLockTimeoutError
   | FlowNotFoundError
@@ -90,7 +92,9 @@ export const cliMessageFromShotError = (error: ShotError): string =>
     LoupeTooLargeError: reasonFromCaptureFailure,
     ConflictingOutputsError: ({ outputs }) => `${outputs.join(', ')} are separate outputs: pick one per run`,
     AppHookMissingError: ({ hook }) => `no ${hook} in shot.config.ts; app paths need app.url and app.logIn`,
-    AppNotRunningError: ({ url }) => `app not running at ${url}; start it, then retry`,
+    AppNotRunningError: ({ url }) => `app not running at ${url}; start it, or set app.start in shot.config.ts`,
+    AppStartTimedOutError: ({ url, timeoutMs }) =>
+      `app.start ran, but ${url} did not answer within ${timeoutMs / 1000}s; read the dev server's output`,
     AppHookFailedError: ({ hook, user, message }) =>
       `${hook} hook failed${Option.match(user, { onNone: () => '', onSome: (email) => ` for ${email}` })}: ${message}`,
     SessionLockTimeoutError: ({ key }) =>

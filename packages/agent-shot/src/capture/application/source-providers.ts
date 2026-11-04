@@ -4,6 +4,7 @@ import type {
   AppHookFailedError,
   AppHookMissingError,
   AppNotRunningError,
+  AppStartTimedOutError,
   SessionLockTimeoutError,
 } from '../../app/app-error.ts'
 import { openRouteSource, resolveRouteSource, type RouteSourceDeps } from '../../app/route-source-provider.ts'
@@ -30,6 +31,7 @@ export type ResolveSourceError =
   | AppHookMissingError
   | AppHookFailedError
   | AppNotRunningError
+  | AppStartTimedOutError
 
 export type OpenSourceError =
   | SourceRenderFailedError
@@ -38,6 +40,7 @@ export type OpenSourceError =
   | AppHookMissingError
   | AppHookFailedError
   | AppNotRunningError
+  | AppStartTimedOutError
   | SessionLockTimeoutError
 
 export interface OpenSourceOptions {

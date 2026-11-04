@@ -5,8 +5,8 @@
 Coding agents change UI blind: they edit CSS, call the job done, and you find the broken phone layout in review. `shot` is a CLI that lets the agent see what it changed. It takes before and after stills of your app, runs layout and accessibility checks, records click-through flows, and puts the screenshots it picks in the pull request.
 
 ```sh
-git stash -u && shot /settings --as admin --size phone --size desktop --check --label before
-git stash pop && shot /settings --as admin --size phone --size desktop --check --label after
+shot /settings --as admin --size phone --size desktop --check --label before
+shot /settings --as admin --size phone --size desktop --check --label after
 shot publish before after --note "Profile=Save button no longer wraps on phones"
 ```
 
@@ -14,7 +14,7 @@ shot publish before after --note "Profile=Save button no longer wraps on phones"
 .shots/a1b2/after/route-settings--profile-admin-iphone-15-light-4c1e9a.png
 .shots/a1b2/after/route-settings--profile-admin-1440x900-light-9f03d2.png
 error target Profile (iPhone 15): touch target 80×20, under 24×24 (#save)
-1 warning (--warnings lists them); 3 findings also in before
+shot: 2 captures · 0 failed · 1 finding (1 error) · 3 also in before · 1 warning hidden (--warnings lists them)
 ```
 
 ## Why use it
@@ -54,11 +54,13 @@ URLs and local HTML files work without any config: `shot https://example.com`, `
 ```ts
 import { axe } from '@agent-shot/axe'
 import { defineConfig, github } from 'agent-shot'
+import { spawn } from 'node:child_process'
 
 export default defineConfig({
   app: {
     url: () => 'http://localhost:3000',
     health: '/health',
+    start: () => void spawn('ship', ['up'], { detached: true, stdio: 'ignore' }).unref(),
     users: { admin: 'admin@example.org', parent: 'parent@example.org' },
     logIn: async ({ page, url, user }) => {
       await page.goto(`${url}/login`)
@@ -70,7 +72,7 @@ export default defineConfig({
 })
 ```
 
-`--as admin` logs in once and reuses the session after that. Optional hooks: `isLoginPage`, `waitUntilReady`, `applyTheme`, `writes: 'allow'`. You can also set `determinism` to fix the clock and random seed.
+`--as admin` logs in once and reuses the session after that. Optional hooks: `isLoginPage`, `waitUntilReady`, `applyTheme`. Same-origin writes (POST, PUT, PATCH, DELETE) are blocked and reported; `writes: 'allow'` lets them all through, `writes: { allow: ['POST /api/sync'] }` only the listed ones (method and pathname; a trailing `*` matches a prefix). You can also set `determinism` to fix the clock and random seed.
 
 `checks` sets how loud each check is: `'off'` for all of them, or per check (core or a plugin's), typed from your `plugins`:
 
@@ -163,7 +165,7 @@ Each image is the still with your drawings burned in. Only the labels the agent 
 ## Output
 
 - **stdout:** one path per file, one line per error finding (`error`, check, part, message), then a note line: how many warnings (`--warnings` lists them) and how many findings `before` has too. With `--check` on both states, the after run shows only what the change added. Add `--json` for every finding. Progress goes to stderr only on a terminal, so agents read only what they act on.
-- **Exit codes:** 0 when everything is ok. 1 on a render failure (500, redirect, timeout, failed step) or an error finding `before` does not have. 2 on a usage error.
+- **Exit codes:** 0 when every capture was taken; findings are reported, and `--strict` exits 1 on an error finding `before` does not have. 1 on a render failure (500, redirect, timeout, failed step) or an app that did not start. 2 on a usage error.
 - **Files:** `.shots/<session>/[<label>/]<source>--<slug>-<hash>.png`. A rerun overwrites the file. Review rounds go to `.shots/<session>/review/`. `shot clean` removes the session.
 
 ## Plugins

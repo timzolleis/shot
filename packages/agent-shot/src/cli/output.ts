@@ -93,9 +93,11 @@ export const findingsReportAgainstBase = ({
   return { results: compared, inBase, baseUnchecked }
 }
 
-/** Exit 1: a capture failed, or an error finding the base does not have. */
-export const isFailingReport = (report: FindingsReport) =>
-  report.results.some((result) => Predicate.isTagged(result, 'FailedCaptureResult') || hasErrorFinding(result.findings))
+/** Exit 1: a capture failed; with `strict`, also an error finding the base does not have. */
+export const isFailingReport = ({ report, strict }: { readonly report: FindingsReport; readonly strict: boolean }) =>
+  report.results.some(
+    (result) => Predicate.isTagged(result, 'FailedCaptureResult') || (strict && hasErrorFinding(result.findings)),
+  )
 
 export const printCaptureResults = ({
   report,
@@ -128,15 +130,33 @@ export const printCaptureResults = ({
 
     for (const { line } of lines) if (!hidden.some((entry) => entry.line === line)) yield* printLine(line)
 
-    const notes = [
-      ...(hidden.length === 0
-        ? []
-        : [`${hidden.length} ${hidden.length === 1 ? 'warning' : 'warnings'} (--warnings lists them)`]),
-      ...(report.inBase === 0
-        ? []
-        : [`${report.inBase} ${report.inBase === 1 ? 'finding' : 'findings'} also in ${base}`]),
-      ...(report.baseUnchecked ? [`${base} was shot without --check: findings not compared`] : []),
-    ]
-
-    if (notes.length > 0) yield* printLine(notes.join('; '))
+    yield* printLine(summaryLine({ report, base, lines, hiddenWarnings: hidden.length }))
   })
+
+const counted = (count: number, singular: string, plural: string) => `${count} ${count === 1 ? singular : plural}`
+
+export const summaryLine = ({
+  report,
+  base,
+  lines,
+  hiddenWarnings,
+}: {
+  readonly report: FindingsReport
+  readonly base: string
+  readonly lines: ReadonlyArray<{ readonly severity: string }>
+  readonly hiddenWarnings: number
+}) => {
+  const failed = report.results.filter((result) => Predicate.isTagged(result, 'FailedCaptureResult')).length
+  const errors = lines.filter((entry) => entry.severity === 'error').length
+
+  return [
+    `shot: ${counted(report.results.length - failed, 'capture', 'captures')}`,
+    `${failed} failed`,
+    `${counted(lines.length, 'finding', 'findings')} (${counted(errors, 'error', 'errors')})`,
+    ...(report.inBase === 0 ? [] : [`${report.inBase} also in ${base}`]),
+    ...(report.baseUnchecked ? [`${base} was shot without --check: not compared`] : []),
+    ...(hiddenWarnings === 0
+      ? []
+      : [`${counted(hiddenWarnings, 'warning', 'warnings')} hidden (--warnings lists them)`]),
+  ].join(' · ')
+}

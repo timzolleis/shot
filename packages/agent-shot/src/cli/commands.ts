@@ -156,6 +156,10 @@ const shootFlags = {
     Flag.withDescription('list warnings, not only their count'),
     Flag.withDefault(false),
   ),
+  strict: Flag.Boolean('strict').pipe(
+    Flag.withDescription('exit 1 on an error finding --base does not have, not only on a failed capture'),
+    Flag.withDefault(false),
+  ),
   name: Flag.String('name').pipe(Flag.withDescription('name the files instead of the generated slug'), Flag.optional),
 }
 
@@ -223,7 +227,7 @@ export const shot = Command.make('shot', shootFlags, (input) =>
     if (input.json) yield* printLine(JSON.stringify(encodeResultsJson(results.map(withoutElementMap)), null, 2))
     else yield* printCaptureResults({ report, base: input.base, warnings: input.warnings })
 
-    if (isFailingReport(report)) process.exitCode = 1
+    if (isFailingReport({ report, strict: input.strict })) process.exitCode = 1
   }),
 ).pipe(
   Command.withDescription('Shoot an app path or a URL: stills, overlays, measurements, checks.'),
@@ -238,8 +242,8 @@ export const shot = Command.make('shot', shootFlags, (input) =>
       description: 'a scene, then one section',
     },
     {
-      command: 'git stash -u && shot /app/persons --as admin --label before',
-      description: 'the state before your change',
+      command: 'shot /app/persons --as admin --label before',
+      description: 'the state before you change anything',
     },
     {
       command: 'shot /settings --as admin --select "#save" --overlay boxes --overlay gaps --check',

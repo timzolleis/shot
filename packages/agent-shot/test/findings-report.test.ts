@@ -7,7 +7,7 @@ import { captureKey } from '../src/capture/domain/capture-key.ts'
 import { defaultShootFlags, planCapturesFromFlags } from '../src/capture/domain/capture-plan.ts'
 import { CapturedResult, type CaptureResult, FailedCaptureResult } from '../src/capture/domain/capture-result.ts'
 import { type Finding, findingsNewSinceBase } from '../src/capture/domain/finding.ts'
-import { findingLines, findingsReportAgainstBase, isFailingReport } from '../src/cli/output.ts'
+import { findingLines, findingsReportAgainstBase, isFailingReport, summaryLine } from '../src/cli/output.ts'
 
 const finding = (check: string, message: string, severity: Finding['severity'] = 'warn'): Finding => ({
   check,
@@ -65,7 +65,7 @@ describe('findingsReportAgainstBase', () => {
 
     expect(messages(report.results)).toEqual(['text overflows by 5px'])
     expect(report.inBase).toBe(1)
-    expect(isFailingReport(report)).toBe(false)
+    expect(isFailingReport({ report, strict: true })).toBe(false)
   })
 
   it('base shot without --check → nothing compared, and it says so', () => {
@@ -76,7 +76,14 @@ describe('findingsReportAgainstBase', () => {
 
     expect(messages(report.results)).toEqual(['under 24×24'])
     expect(report.baseUnchecked).toBe(true)
-    expect(isFailingReport(report)).toBe(true)
+    expect(isFailingReport({ report, strict: true })).toBe(true)
+  })
+
+  it('an error finding fails the run only with --strict', () => {
+    const report = findingsReportAgainstBase({ results: [shot({ findings: [old], checked: true })], base: undefined })
+
+    expect(isFailingReport({ report, strict: false })).toBe(false)
+    expect(isFailingReport({ report, strict: true })).toBe(true)
   })
 
   it('no base, or a failed capture → unchanged; a failed capture fails the run', () => {
@@ -84,7 +91,7 @@ describe('findingsReportAgainstBase', () => {
     const report = findingsReportAgainstBase({ results: [failed], base: undefined })
 
     expect(report).toEqual({ results: [failed], inBase: 0, baseUnchecked: false })
-    expect(isFailingReport(report)).toBe(true)
+    expect(isFailingReport({ report, strict: false })).toBe(true)
   })
 })
 
@@ -93,5 +100,31 @@ describe('findingLines', () => {
     expect(findingLines([shot({ findings: [finding('align', 'edges 2px apart')], checked: true })])).toEqual([
       { severity: 'warn', line: 'warn align page: edges 2px apart (#a)' },
     ])
+  })
+})
+
+describe('summaryLine', () => {
+  it('counts captures, failures, findings, the base and hidden warnings in one line', () => {
+    const failed = FailedCaptureResult.make({ capture, key: captureKey(capture), findings: [] })
+
+    const report = findingsReportAgainstBase({
+      results: [
+        shot({ findings: [finding('target', 'under 24×24', 'error'), finding('align', 'off')], checked: true }),
+        failed,
+      ],
+      base: before([shot({ findings: [finding('align', 'off')], checked: true })]),
+    })
+
+    expect(summaryLine({ report, base: 'before', lines: [{ severity: 'error' }], hiddenWarnings: 2 })).toBe(
+      'shot: 1 capture · 1 failed · 1 finding (1 error) · 1 also in before · 2 warnings hidden (--warnings lists them)',
+    )
+  })
+
+  it('a clean run still ends with the line', () => {
+    const report = findingsReportAgainstBase({ results: [shot({ findings: [], checked: true })], base: undefined })
+
+    expect(summaryLine({ report, base: 'before', lines: [], hiddenWarnings: 0 })).toBe(
+      'shot: 1 capture · 0 failed · 0 findings (0 errors)',
+    )
   })
 })

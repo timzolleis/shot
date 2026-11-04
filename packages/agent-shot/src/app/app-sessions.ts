@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { ArtifactStore } from '../artifact/artifact-store.ts'
 import { Browser } from '../infrastructure/browser.ts'
-import type { AppHookFailedError, AppHookMissingError, AppNotRunningError } from './app-error.ts'
+import type { AppHookFailedError, AppHookMissingError, AppNotRunningError, AppStartTimedOutError } from './app-error.ts'
 import { SessionLockTimeoutError } from './app-error.ts'
 import { AppHooks } from './app-hooks.ts'
 import { appSessionKey } from './app-user.ts'
@@ -29,14 +29,14 @@ export class AppSessions extends Context.Service<
       input: AppSessionInput,
     ): Effect.Effect<
       StorageStateFile,
-      AppHookMissingError | AppHookFailedError | AppNotRunningError | SessionLockTimeoutError
+      AppHookMissingError | AppHookFailedError | AppNotRunningError | AppStartTimedOutError | SessionLockTimeoutError
     >
     /** Logs in fresh, even when a cached session exists. */
     renewAppSession(
       input: AppSessionInput,
     ): Effect.Effect<
       StorageStateFile,
-      AppHookMissingError | AppHookFailedError | AppNotRunningError | SessionLockTimeoutError
+      AppHookMissingError | AppHookFailedError | AppNotRunningError | AppStartTimedOutError | SessionLockTimeoutError
     >
   }
 >()('shot/AppSessions') {}

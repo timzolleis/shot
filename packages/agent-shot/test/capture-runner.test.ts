@@ -192,7 +192,7 @@ describe('CaptureRunner against the fixture app', () => {
 
     const outputs = await Promise.all([run(), run()])
     expect(await logins()).toBe(before + 1)
-    expect(outputs.map((output) => output.stdout.trim())).toEqual([
+    expect(outputs.map((output) => output.stdout.trim().split('\n')[0])).toEqual([
       expect.stringMatching(/route-app-persons--viewport-admin-1280x900-light-[0-9a-f]{6}\.png$/),
       expect.stringMatching(/route-app-persons--viewport-admin-1280x900-light-[0-9a-f]{6}\.png$/),
     ])

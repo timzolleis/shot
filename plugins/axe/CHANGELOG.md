@@ -1,5 +1,14 @@
 # @agent-shot/axe
 
+## 0.3.0
+
+### Patch Changes
+
+- Updated dependencies [c60024b]
+- Updated dependencies [5699a01]
+- Updated dependencies [676d705]
+  - agent-shot@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes

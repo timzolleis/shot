@@ -1,5 +1,16 @@
 # agent-shot
 
+## 0.3.0
+
+### Minor Changes
+
+- c60024b: `app.start` starts the app when `app.url` does not answer, and shot waits up to `app.startTimeoutMs` (default 120 s) for it; two runs that find it down start it once. Findings no longer fail a run: exit 1 means a capture could not be taken, and `--strict` brings back exit 1 on a new error finding. Every run ends with one summary line, `shot: 3 captures · 0 failed · 2 findings (1 error) · 1 also in before`. The skill is one screen long and shoots `before` first instead of stashing.
+- 676d705: `app.writes` takes an allowlist: `writes: { allow: ['POST /api/sync'] }` lets the listed writes through (method and pathname, a trailing `*` matches a prefix) and blocks and reports every other one. An app that reads through a POST, like live sync, renders without `writes: 'allow'`.
+
+### Patch Changes
+
+- 5699a01: The skill runs the repo's checks and commits before shooting, shoots `before` from the merge base instead of a stash, and prefers scene flags over flows.
+
 ## 0.2.0
 
 ### Minor Changes
